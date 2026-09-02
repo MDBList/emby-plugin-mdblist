@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- net9.0, not net8.0 like the main plugin project: this test project
+         has zero Emby SDK dependency (pure logic only), so there's no
+         reason to require a second installed runtime just for this. -->
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>Emby.Plugin.MDBList.Tests</RootNamespace>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Emby.Plugin.MDBList\Emby.Plugin.MDBList.csproj" />
+  </ItemGroup>
+
+</Project>

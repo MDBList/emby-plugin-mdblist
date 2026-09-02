@@ -34,4 +34,8 @@
     <EmbeddedResource Include="Configuration\configPage.html" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Emby.Plugin.MDBList.Tests" />
+  </ItemGroup>
+
 </Project>

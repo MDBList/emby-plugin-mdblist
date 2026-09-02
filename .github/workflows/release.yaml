@@ -1,0 +1,57 @@
+name: '🚢 Release Plugin'
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Determine version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Extract Emby reference assemblies
+        run: dev/extract-system-dlls.sh
+
+      - name: Build plugin
+        run: |
+          dotnet build Emby.Plugin.MDBList/Emby.Plugin.MDBList.csproj -c Release \
+            -p:Version="${{ steps.version.outputs.version }}" \
+            -p:AssemblyVersion="${{ steps.version.outputs.version }}" \
+            -p:FileVersion="${{ steps.version.outputs.version }}"
+
+      - name: Package plugin zip
+        run: |
+          # Emby has no self-hosted repository/manifest mechanism -- see the
+          # plan's Phase 5 notes. The only real distribution path is a zip a
+          # user extracts by hand into their server's plugins folder, so
+          # that's all this packages: just the built DLL, nothing else.
+          mkdir -p artifacts
+          ZIP_NAME="emby-plugin-mdblist-${{ steps.version.outputs.version }}.zip"
+          cd Emby.Plugin.MDBList/bin/Release/net8.0
+          zip "$GITHUB_WORKSPACE/artifacts/$ZIP_NAME" Emby.Plugin.MDBList.dll
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          files: artifacts/*.zip
+          generate_release_notes: true

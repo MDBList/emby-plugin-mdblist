@@ -5,6 +5,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Emby.Plugin.MDBList", "Emby.Plugin.MDBList\Emby.Plugin.MDBList.csproj", "{A5DF8F93-DDAB-451A-AF71-B4BF729D5162}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Emby.Plugin.MDBList.Tests", "Emby.Plugin.MDBList.Tests\Emby.Plugin.MDBList.Tests.csproj", "{CF88E3AD-4C14-4EA8-8B34-951C844E9A94}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{A5DF8F93-DDAB-451A-AF71-B4BF729D5162}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A5DF8F93-DDAB-451A-AF71-B4BF729D5162}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A5DF8F93-DDAB-451A-AF71-B4BF729D5162}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CF88E3AD-4C14-4EA8-8B34-951C844E9A94}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CF88E3AD-4C14-4EA8-8B34-951C844E9A94}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CF88E3AD-4C14-4EA8-8B34-951C844E9A94}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CF88E3AD-4C14-4EA8-8B34-951C844E9A94}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
