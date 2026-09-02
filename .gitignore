@@ -1,0 +1,14 @@
+bin/
+obj/
+.vs/
+.idea/
+artifacts
+
+# Reference assemblies extracted from the Emby Server Docker image (Phase 0)
+# -- binary, re-extractable, not source.
+dev/system/
+
+# Local Emby dev server state -- instance data, not source.
+dev/config/
+dev/cache/
+dev/media/

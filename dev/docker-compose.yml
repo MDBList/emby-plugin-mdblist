@@ -1,0 +1,10 @@
+services:
+  emby:
+    image: emby/embyserver:4.10.0.30
+    container_name: emby-mdblist-dev
+    ports:
+      - "8097:8096"
+    volumes:
+      - ./config:/config
+      - ./media:/media:ro
+    restart: unless-stopped
