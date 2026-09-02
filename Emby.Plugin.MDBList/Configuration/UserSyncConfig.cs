@@ -1,0 +1,79 @@
+using System;
+
+namespace Emby.Plugin.MDBList.Configuration;
+
+/// <summary>
+/// One Emby user's link to an MDBList account. V1 supports exactly one
+/// entry, but every sync method takes the linked user id from day one so a
+/// later multi-user version is additive rather than a state migration.
+/// </summary>
+public class UserSyncConfig
+{
+    /// <summary>
+    /// Gets or sets the linked Emby user's id.
+    /// </summary>
+    public Guid EmbyUserId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the MDBList OAuth access token.
+    /// </summary>
+    public string AccessToken { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the MDBList OAuth refresh token.
+    /// </summary>
+    public string RefreshToken { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the access token's expiry, as Unix seconds.
+    /// </summary>
+    public long ExpiresAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether Emby's thumbs-up/down
+    /// (from the stock web UI's like/dislike button) should be ignored
+    /// rather than pushed as a 10 or 1 rating. That button always writes
+    /// exactly 10 or 1 regardless of intent, which would otherwise silently
+    /// overwrite (or create) a real numeric MDBList rating. Genuine numeric
+    /// ratings (e.g. from clients like Infuse) are unaffected. Defaults to on.
+    /// </summary>
+    public bool IgnoreThumbRatings { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether watched status syncs at all
+    /// (live push, full run, and the activity-gated pull).
+    /// </summary>
+    public bool WatchedEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether ratings sync at all.
+    /// </summary>
+    public bool RatingsEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether collection membership pushes
+    /// at all.
+    /// </summary>
+    public bool CollectionEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether a full sync run should follow
+    /// a completed library scan -- port of Kodi's <c>sync.on_library_scan</c>
+    /// setting. <see cref="Events.LibraryChangeDebouncer"/> already reacts to
+    /// every item add/update/remove regardless of what triggered them (a
+    /// scheduled scan, real-time monitoring, a manual "Scan Library"), so
+    /// this toggle gates that debouncer rather than adding a second,
+    /// redundant trigger.
+    /// </summary>
+    public bool SyncAfterLibraryScan { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether live playback progress pushes
+    /// to MDBList's /scrobble/* endpoints -- port of Kodi's player_monitor.py.
+    /// Independent of <see cref="WatchedEnabled"/>: scrobbling is a
+    /// real-time progress feed the server uses for its own watched-marking
+    /// and "continue watching" position, not the /sync/watched
+    /// diff-and-reconcile flow -- either can be on without the other.
+    /// </summary>
+    public bool ScrobblingEnabled { get; set; } = true;
+}
