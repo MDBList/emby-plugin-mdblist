@@ -38,6 +38,7 @@ public sealed class SyncOrchestrator : IDisposable
     private readonly SyncStateStore _stateStore;
     private readonly WatchedSync _watchedSync;
     private readonly RatingsSync _ratingsSync;
+    private readonly CollectionSync _collectionSync;
     private readonly ILogger _logger;
 
     /// <summary>
@@ -51,6 +52,7 @@ public sealed class SyncOrchestrator : IDisposable
     /// <param name="stateStore">Instance of the <see cref="SyncStateStore"/>.</param>
     /// <param name="watchedSync">Instance of the <see cref="WatchedSync"/>.</param>
     /// <param name="ratingsSync">Instance of the <see cref="RatingsSync"/>.</param>
+    /// <param name="collectionSync">Instance of the <see cref="CollectionSync"/>.</param>
     /// <param name="logManager">Instance of the <see cref="ILogManager"/> interface.</param>
     public SyncOrchestrator(
         IUserManager userManager,
@@ -61,6 +63,7 @@ public sealed class SyncOrchestrator : IDisposable
         SyncStateStore stateStore,
         WatchedSync watchedSync,
         RatingsSync ratingsSync,
+        CollectionSync collectionSync,
         ILogManager logManager)
     {
         _userManager = userManager;
@@ -71,6 +74,7 @@ public sealed class SyncOrchestrator : IDisposable
         _stateStore = stateStore;
         _watchedSync = watchedSync;
         _ratingsSync = ratingsSync;
+        _collectionSync = collectionSync;
         _logger = logManager.GetLogger("MDBList.Sync");
     }
 
@@ -157,8 +161,16 @@ public sealed class SyncOrchestrator : IDisposable
                     ratingsPull.Mode);
             }
 
-            // Collection sync is wired in once CollectionSync.cs exists.
             var collectionSummary = "collection skipped";
+            if (config.CollectionEnabled)
+            {
+                var collectionPush = await _collectionSync.PushAsync(user.Id, accessToken, snapshot, cancellationToken).ConfigureAwait(false);
+                collectionSummary = string.Format(
+                    CultureInfo.InvariantCulture,
+                    "collection push +{0}/-{1}",
+                    collectionPush.PushedAdd,
+                    collectionPush.PushedRemove);
+            }
 
             var summary = $"{watchedSummary}, {ratingsSummary}, {collectionSummary}";
             _logger.Info("MDBList Sync: run complete - {0}", summary);

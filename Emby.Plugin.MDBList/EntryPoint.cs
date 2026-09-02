@@ -1,6 +1,7 @@
 using Emby.Plugin.MDBList.Events;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Plugins;
+using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Logging;
 
 namespace Emby.Plugin.MDBList;
@@ -21,8 +22,10 @@ public class EntryPoint : IServerEntryPoint
 {
     private readonly IUserDataManager _userDataManager;
     private readonly ILibraryManager _libraryManager;
+    private readonly ISessionManager _sessionManager;
     private readonly LiveSyncService _liveSyncService;
     private readonly LibraryChangeDebouncer _libraryChangeDebouncer;
+    private readonly PlaybackScrobbleService _playbackScrobbleService;
     private readonly ILogger _logger;
 
     /// <summary>
@@ -30,20 +33,26 @@ public class EntryPoint : IServerEntryPoint
     /// </summary>
     /// <param name="userDataManager">Instance of the <see cref="IUserDataManager"/> interface.</param>
     /// <param name="libraryManager">Instance of the <see cref="ILibraryManager"/> interface.</param>
+    /// <param name="sessionManager">Instance of the <see cref="ISessionManager"/> interface.</param>
     /// <param name="liveSyncService">Instance of the <see cref="LiveSyncService"/>.</param>
     /// <param name="libraryChangeDebouncer">Instance of the <see cref="LibraryChangeDebouncer"/>.</param>
+    /// <param name="playbackScrobbleService">Instance of the <see cref="PlaybackScrobbleService"/>.</param>
     /// <param name="logManager">Instance of the <see cref="ILogManager"/> interface.</param>
     public EntryPoint(
         IUserDataManager userDataManager,
         ILibraryManager libraryManager,
+        ISessionManager sessionManager,
         LiveSyncService liveSyncService,
         LibraryChangeDebouncer libraryChangeDebouncer,
+        PlaybackScrobbleService playbackScrobbleService,
         ILogManager logManager)
     {
         _userDataManager = userDataManager;
         _libraryManager = libraryManager;
+        _sessionManager = sessionManager;
         _liveSyncService = liveSyncService;
         _libraryChangeDebouncer = libraryChangeDebouncer;
+        _playbackScrobbleService = playbackScrobbleService;
         _logger = logManager.GetLogger("MDBList");
     }
 
@@ -54,6 +63,9 @@ public class EntryPoint : IServerEntryPoint
         _libraryManager.ItemAdded += OnLibraryItemChanged;
         _libraryManager.ItemUpdated += OnLibraryItemChanged;
         _libraryManager.ItemRemoved += OnLibraryItemChanged;
+        _sessionManager.PlaybackStart += OnPlaybackStart;
+        _sessionManager.PlaybackProgress += OnPlaybackProgress;
+        _sessionManager.PlaybackStopped += OnPlaybackStopped;
         _logger.Info("MDBList: event subscriptions active.");
     }
 
@@ -64,6 +76,9 @@ public class EntryPoint : IServerEntryPoint
         _libraryManager.ItemAdded -= OnLibraryItemChanged;
         _libraryManager.ItemUpdated -= OnLibraryItemChanged;
         _libraryManager.ItemRemoved -= OnLibraryItemChanged;
+        _sessionManager.PlaybackStart -= OnPlaybackStart;
+        _sessionManager.PlaybackProgress -= OnPlaybackProgress;
+        _sessionManager.PlaybackStopped -= OnPlaybackStopped;
     }
 
     private void OnUserDataSaved(object? sender, UserDataSaveEventArgs e)
@@ -74,5 +89,20 @@ public class EntryPoint : IServerEntryPoint
     private void OnLibraryItemChanged(object? sender, ItemChangeEventArgs e)
     {
         _libraryChangeDebouncer.NotifyChange(e.Item);
+    }
+
+    private void OnPlaybackStart(object? sender, PlaybackProgressEventArgs e)
+    {
+        _playbackScrobbleService.HandlePlaybackStart(e);
+    }
+
+    private void OnPlaybackProgress(object? sender, PlaybackProgressEventArgs e)
+    {
+        _playbackScrobbleService.HandlePlaybackProgress(e);
+    }
+
+    private void OnPlaybackStopped(object? sender, PlaybackStopEventArgs e)
+    {
+        _playbackScrobbleService.HandlePlaybackStopped(e);
     }
 }
