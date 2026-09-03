@@ -27,15 +27,19 @@
       <HintPath>$(EmbySystemPath)/MediaBrowser.Model.dll</HintPath>
       <Private>false</Private>
     </Reference>
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Remove="Configuration\configPage.html" />
-    <EmbeddedResource Include="Configuration\configPage.html" />
+    <Reference Include="Emby.Web.GenericEdit">
+      <HintPath>$(EmbySystemPath)/Emby.Web.GenericEdit.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="Emby.Plugin.MDBList.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="ThumbImage.png" />
+    <EmbeddedResource Include="ThumbImage.png" />
   </ItemGroup>
 
 </Project>
