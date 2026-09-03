@@ -52,8 +52,8 @@ public sealed class LibraryChangeDebouncer : IDisposable
             return;
         }
 
-        var linkedUserConfig = Plugin.Instance?.Configuration.Users.FirstOrDefault();
-        if (linkedUserConfig is null || !linkedUserConfig.SyncAfterLibraryScan)
+        var linkedUsers = Plugin.Instance?.Configuration.Users;
+        if (linkedUsers is null || !linkedUsers.Any(u => u.SyncAfterLibraryScan))
         {
             return;
         }
@@ -71,13 +71,20 @@ public sealed class LibraryChangeDebouncer : IDisposable
     {
         _ = Task.Run(async () =>
         {
-            try
+            // Each linked user has their own SyncAfterLibraryScan toggle,
+            // so this can't just run the whole batch (RunAllLinkedUsersAsync)
+            // -- it has to filter first, then sync each opted-in user in turn.
+            var users = Plugin.Instance?.Configuration.Users.Where(u => u.SyncAfterLibraryScan).ToList() ?? [];
+            foreach (var config in users)
             {
-                await _orchestrator.RunAsync(CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger.Debug("MDBList: library-change-triggered sync failed: {0}", ex.Message);
+                try
+                {
+                    await _orchestrator.RunAsync(config.EmbyUserId, CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Debug("MDBList: library-change-triggered sync failed for user {0}: {1}", config.EmbyUserId, ex.Message);
+                }
             }
         });
     }

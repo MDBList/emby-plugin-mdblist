@@ -10,8 +10,8 @@ namespace Emby.Plugin.MDBList.Configuration;
 public class PluginConfiguration : BasePluginConfiguration
 {
     /// <summary>
-    /// Gets or sets the linked users. V1 only ever holds one entry -- see
-    /// <see cref="UserSyncConfig"/>.
+    /// Gets or sets the linked users -- one entry per Emby user who has
+    /// connected their own MDBList account, see <see cref="UserSyncConfig"/>.
     ///
     /// Settable rather than the usual get-only-collection pattern: the
     /// config page saves settings by POSTing the whole configuration object

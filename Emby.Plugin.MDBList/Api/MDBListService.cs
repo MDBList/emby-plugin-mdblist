@@ -89,7 +89,7 @@ public class MDBListService : IService
     /// <returns>The resulting status, including the run's summary.</returns>
     public object Post(TriggerSync request)
     {
-        _orchestrator.RunAsync(CancellationToken.None).GetAwaiter().GetResult();
+        _orchestrator.RunAsync(request.UserId, CancellationToken.None).GetAwaiter().GetResult();
         return BuildStatus(request.UserId);
     }
 

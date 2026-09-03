@@ -146,25 +146,31 @@ public sealed class PlaybackScrobbleService
 
     private async Task SendAsync(PlaybackProgressEventArgs e, string endpoint, bool playedToCompletion)
     {
+        var userIds = ResolveScrobblingLinkedUserIds(e.Users);
+        if (userIds.Count == 0)
+        {
+            return;
+        }
+
+        var request = BuildScrobbleRequest(e.Item, e.PlaybackPositionTicks, playedToCompletion);
+        if (request is null)
+        {
+            return;
+        }
+
+        // A session usually has exactly one user, but Emby models it as a
+        // list (e.g. profile-sharing setups) -- push once per linked user
+        // actually on this session, not just the first one found overall.
+        foreach (var userId in userIds)
+        {
+            await SendForUserAsync(userId, endpoint, request).ConfigureAwait(false);
+        }
+    }
+
+    private async Task SendForUserAsync(Guid userId, string endpoint, ScrobbleRequest request)
+    {
         try
         {
-            if (!TryResolveLinkedUserId(e.Users, out var userId))
-            {
-                return;
-            }
-
-            var linkedUserConfig = Plugin.Instance?.Configuration.Users.FirstOrDefault(u => u.EmbyUserId == userId);
-            if (linkedUserConfig is null || !linkedUserConfig.ScrobblingEnabled)
-            {
-                return;
-            }
-
-            var request = BuildScrobbleRequest(e.Item, e.PlaybackPositionTicks, playedToCompletion);
-            if (request is null)
-            {
-                return;
-            }
-
             var accessToken = await _oauthService.EnsureValidTokenAsync(userId, CancellationToken.None).ConfigureAwait(false);
             if (string.IsNullOrEmpty(accessToken))
             {
@@ -175,21 +181,29 @@ public sealed class PlaybackScrobbleService
         }
         catch (MDBListApiException ex)
         {
-            _logger.Debug("MDBList scrobble push to {0} failed: {1}", endpoint, ex.Message);
+            _logger.Debug("MDBList scrobble push to {0} failed for user {1}: {2}", endpoint, userId, ex.Message);
         }
     }
 
-    private static bool TryResolveLinkedUserId(IReadOnlyList<User> sessionUsers, out Guid userId)
+    private static List<Guid> ResolveScrobblingLinkedUserIds(IReadOnlyList<User> sessionUsers)
     {
-        var linkedUserConfig = Plugin.Instance?.Configuration.Users.FirstOrDefault();
-        if (linkedUserConfig is null || !sessionUsers.Any(u => u.Id == linkedUserConfig.EmbyUserId))
+        var linkedUsers = Plugin.Instance?.Configuration.Users;
+        if (linkedUsers is null || linkedUsers.Count == 0)
         {
-            userId = Guid.Empty;
-            return false;
+            return [];
         }
 
-        userId = linkedUserConfig.EmbyUserId;
-        return true;
+        var result = new List<Guid>();
+        foreach (var sessionUser in sessionUsers)
+        {
+            var config = linkedUsers.FirstOrDefault(u => u.EmbyUserId == sessionUser.Id);
+            if (config is not null && config.ScrobblingEnabled)
+            {
+                result.Add(sessionUser.Id);
+            }
+        }
+
+        return result;
     }
 
     private static ScrobbleRequest? BuildScrobbleRequest(BaseItem? item, long? positionTicks, bool playedToCompletion)
