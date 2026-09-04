@@ -18,9 +18,18 @@ namespace Emby.Plugin.MDBList.Sync;
 /// property name confirmed on Emby's own <see cref="IApplicationPaths"/> by
 /// reflection.
 ///
-/// A single in-memory cache guarded by one <see cref="SemaphoreSlim"/>
-/// covers every caller in this one-process plugin. Still written atomically
-/// (temp file + move) for crash safety.
+/// Unlike the Jellyfin sibling, this class cannot rely on an in-memory
+/// cache surviving across every caller: Emby has no equivalent of
+/// Jellyfin's <c>AddSingleton</c> plugin-service registration, so Emby's
+/// plugin loader hands the scheduled tasks, the API service, and the
+/// config page each their own independently-constructed instance (each
+/// with its own empty cache). A cache here would let one instance's stale
+/// view -- e.g. the config page's, loaded once before any sync had ever
+/// run -- permanently shadow state written by another instance, which is
+/// exactly what made "Last run" never update after a scheduled sync (see
+/// GitHub issue #1). So every read/mutate below goes straight to disk,
+/// which is the only state genuinely shared across instances. Still
+/// written atomically (temp file + move) for crash safety.
 /// </summary>
 public sealed class SyncStateStore : IDisposable
 {
@@ -41,7 +50,6 @@ public sealed class SyncStateStore : IDisposable
 
     private readonly string _filePath;
     private readonly SemaphoreSlim _lock = new(1, 1);
-    private SyncStateFile? _cache;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SyncStateStore"/> class.
@@ -298,13 +306,7 @@ public sealed class SyncStateStore : IDisposable
 
     private async Task<SyncStateFile> EnsureLoadedAsync(CancellationToken cancellationToken)
     {
-        if (_cache is not null)
-        {
-            return _cache;
-        }
-
-        _cache = await LoadFromDiskAsync(cancellationToken).ConfigureAwait(false);
-        return _cache;
+        return await LoadFromDiskAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<SyncStateFile> LoadFromDiskAsync(CancellationToken cancellationToken)
