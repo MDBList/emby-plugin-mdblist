@@ -18,9 +18,10 @@ namespace Emby.Plugin.MDBList.Sync;
 /// Watched-status two-way sync -- port of jellyfin-plugin-mdblist's
 /// WatchedSync.cs (itself watched_sync.py).
 ///
-/// Push: membership diff only. A rewatch that updates LastPlayedDate
-/// without changing Played is covered by a live single-item push from
-/// <see cref="PushSingleAsync"/>, not the full diff.
+/// Push: membership diff, plus a value-changed check on WatchedAt so a
+/// rewatch that only updates LastPlayedDate (Played unchanged) is still
+/// re-pushed by the full diff, not just by the live single-item push from
+/// <see cref="PushSingleAsync"/>.
 ///
 /// Pull: real last-write-wins conflict resolution using UTC timestamps on
 /// both sides. Unlike the Jellyfin sibling, Emby's <c>LastPlayedDate</c> is
@@ -83,7 +84,7 @@ public class WatchedSync
             current,
             items => _payloadBuilder.PushItemsAsync(accessToken, Endpoint, FieldName, items, GetWatchedAtValue, cancellationToken),
             items => _payloadBuilder.PushItemsRemoveAsync(accessToken, RemoveEndpoint, items, cancellationToken),
-            valueChanged: null,
+            valueChanged: (known, item) => known.WatchedAt != item.WatchedAt,
             cancellationToken).ConfigureAwait(false);
     }
 
