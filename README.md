@@ -1,5 +1,10 @@
 # emby-plugin-mdblist
 
+> **⚠️ Requires Emby Server 4.10 or newer (currently the beta channel).**
+> The settings page uses Emby's newer GenericEdit UI system, which isn't
+> present on 4.9 stable -- on 4.9 the plugin will load (visible in the
+> server logs) but will **not** appear on the Plugins screen.
+
 An Emby server plugin that syncs watched status and ratings two-way with
 [MDBList](https://mdblist.com), pushes library/collection membership, and
 reports live playback progress via scrobbling. Uses MDBList's incremental
