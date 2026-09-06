@@ -221,11 +221,12 @@ public sealed class SyncOrchestrator : IDisposable
                     .ConfigureAwait(false);
                 watchedSummary = string.Format(
                     CultureInfo.InvariantCulture,
-                    "watched push +{0}/-{1}{2} pull {3} ({4})",
+                    "watched push +{0}/-{1}{2} pull {3}{4} ({5})",
                     watchedPush.PushedAdd,
                     watchedPush.PushedRemove,
                     watchedPush.SkippedRemove > 0 ? $" ({watchedPush.SkippedRemove} skipped)" : string.Empty,
                     watchedPull.PulledApplied,
+                    watchedPull.SkippedRemove > 0 ? $" ({watchedPull.SkippedRemove} unwatch skipped)" : string.Empty,
                     watchedPull.Mode);
             }
 
@@ -397,7 +398,12 @@ public sealed class SyncOrchestrator : IDisposable
             {
                 var watchedPull = await _watchedSync.PullAsync(user.Id, accessToken, user, snapshot, activities.ServerTime, cancellationToken)
                     .ConfigureAwait(false);
-                summaries.Add(string.Format(CultureInfo.InvariantCulture, "watched pull {0} ({1})", watchedPull.PulledApplied, watchedPull.Mode));
+                summaries.Add(string.Format(
+                    CultureInfo.InvariantCulture,
+                    "watched pull {0}{1} ({2})",
+                    watchedPull.PulledApplied,
+                    watchedPull.SkippedRemove > 0 ? $" ({watchedPull.SkippedRemove} unwatch skipped)" : string.Empty,
+                    watchedPull.Mode));
             }
 
             if (ratingsChanged)
