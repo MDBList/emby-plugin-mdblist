@@ -315,7 +315,9 @@ public class MDBListPageView : PluginPageView
 
         try
         {
-            await _orchestrator.RunAsync(userId, CancellationToken.None).ConfigureAwait(false);
+            // allowRemovals: true -- explicit user intent, foreground, user
+            // is watching -- same trust level as the 24h timer.
+            await _orchestrator.RunAsync(userId, allowRemovals: true, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

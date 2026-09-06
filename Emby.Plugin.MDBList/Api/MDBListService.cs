@@ -89,7 +89,9 @@ public class MDBListService : IService
     /// <returns>The resulting status, including the run's summary.</returns>
     public object Post(TriggerSync request)
     {
-        _orchestrator.RunAsync(request.UserId, CancellationToken.None).GetAwaiter().GetResult();
+        // allowRemovals: true -- explicit user intent, foreground, user is
+        // watching -- same trust level as the 24h timer.
+        _orchestrator.RunAsync(request.UserId, allowRemovals: true, CancellationToken.None).GetAwaiter().GetResult();
         return BuildStatus(request.UserId);
     }
 

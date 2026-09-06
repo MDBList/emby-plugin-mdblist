@@ -54,7 +54,10 @@ public class MDBListSyncTask : IScheduledTask
     /// <inheritdoc />
     public async Task Execute(CancellationToken cancellationToken, IProgress<double> progress)
     {
-        await _orchestrator.RunAllLinkedUsersAsync(cancellationToken).ConfigureAwait(false);
+        // allowRemovals: true -- the deliberate 24h reconciliation backstop,
+        // trusted to actually remove things from MDBList (still subject to
+        // SyncPayloadBuilder's magnitude circuit-breaker).
+        await _orchestrator.RunAllLinkedUsersAsync(allowRemovals: true, cancellationToken).ConfigureAwait(false);
         progress.Report(100);
     }
 }
