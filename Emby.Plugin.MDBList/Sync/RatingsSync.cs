@@ -11,6 +11,7 @@ using Emby.Plugin.MDBList.Library;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Entities;
+using MediaBrowser.Model.Logging;
 
 namespace Emby.Plugin.MDBList.Sync;
 
@@ -39,6 +40,7 @@ public class RatingsSync
     private readonly MDBListApiClient _apiClient;
     private readonly ILibraryManager _libraryManager;
     private readonly IUserDataManager _userDataManager;
+    private readonly ILogger _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RatingsSync"/> class.
@@ -48,18 +50,21 @@ public class RatingsSync
     /// <param name="apiClient">Instance of the <see cref="MDBListApiClient"/>.</param>
     /// <param name="libraryManager">Instance of the <see cref="ILibraryManager"/> interface.</param>
     /// <param name="userDataManager">Instance of the <see cref="IUserDataManager"/> interface.</param>
+    /// <param name="logManager">Instance of the <see cref="ILogManager"/> interface.</param>
     public RatingsSync(
         SyncPayloadBuilder payloadBuilder,
         SyncStateStore stateStore,
         MDBListApiClient apiClient,
         ILibraryManager libraryManager,
-        IUserDataManager userDataManager)
+        IUserDataManager userDataManager,
+        ILogManager logManager)
     {
         _payloadBuilder = payloadBuilder;
         _stateStore = stateStore;
         _apiClient = apiClient;
         _libraryManager = libraryManager;
         _userDataManager = userDataManager;
+        _logger = logManager.GetLogger("MDBList.Sync");
     }
 
     /// <summary>
@@ -144,15 +149,25 @@ public class RatingsSync
         var since = await _stateStore.GetSyncedAtAsync(userId, Category, cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrEmpty(since))
         {
+            _logger.Debug("MDBList Sync: ratings pull for user {0} has no cursor - running full pull", user.Name);
             return await PullFullAsync(userId, accessToken, user, snapshot, serverTime, cancellationToken).ConfigureAwait(false);
         }
 
         var journal = await _apiClient.FetchJournalAsync(accessToken, since, JournalPageSize, cancellationToken).ConfigureAwait(false);
         if (journal.RequiresFullSync)
         {
+            _logger.Debug(
+                "MDBList Sync: ratings pull cursor {0} for user {1} is outside journal retention - running full pull",
+                since,
+                user.Name);
             return await PullFullAsync(userId, accessToken, user, snapshot, serverTime, cancellationToken).ConfigureAwait(false);
         }
 
+        _logger.Debug(
+            "MDBList Sync: ratings pull cursor {0} for user {1} - running incremental pull ({2} journal entries)",
+            since,
+            user.Name,
+            journal.Entries.Count);
         return await PullIncrementalAsync(userId, user, journal.Entries, snapshot, serverTime, cancellationToken).ConfigureAwait(false);
     }
 
@@ -164,6 +179,12 @@ public class RatingsSync
         // works for /sync/watched.
         var data = await _apiClient.FetchSyncItemsAsync(accessToken, Endpoint, mediatype: null, since: null, extended: null, JournalPageSize, cancellationToken)
             .ConfigureAwait(false);
+
+        _logger.Debug(
+            "MDBList Sync: ratings full pull for user {0} fetched {1} movies, {2} episodes from MDBList",
+            user.Name,
+            data.Movies.Count,
+            data.Episodes.Count);
 
         var applied = 0;
 
@@ -189,7 +210,7 @@ public class RatingsSync
                 continue;
             }
 
-            var match = snapshot.FindEpisode(showIds, entry.Episode?.Season, entry.Episode?.Number);
+            var match = snapshot.FindEpisode(showIds, entry.Episode?.Season, entry.Episode?.Number, entry.Episode?.Ids);
             if (ApplyRating(user, match, entry.Rating ?? 0))
             {
                 applied++;
@@ -209,6 +230,7 @@ public class RatingsSync
         CancellationToken cancellationToken)
     {
         var applied = 0;
+        var skippedType = 0;
 
         foreach (var entry in entries)
         {
@@ -228,12 +250,24 @@ public class RatingsSync
             }
             else if (entry.ItemType == "episode")
             {
-                var match = snapshot.FindEpisode(entry.Ids, entry.Season, entry.Episode);
+                var match = snapshot.FindEpisode(entry.Ids, entry.Season, entry.Episode, entry.EpisodeIds);
                 if (ApplyRating(user, match, rating))
                 {
                     applied++;
                 }
             }
+            else
+            {
+                skippedType++;
+            }
+        }
+
+        if (skippedType > 0)
+        {
+            _logger.Debug(
+                "MDBList Sync: ratings incremental pull for user {0} skipped {1} journal entries with unhandled item type",
+                user.Name,
+                skippedType);
         }
 
         await _stateStore.SetSyncedAtAsync(userId, Category, serverTime ?? NowIso(), cancellationToken).ConfigureAwait(false);

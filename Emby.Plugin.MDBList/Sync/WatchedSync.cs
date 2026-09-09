@@ -170,15 +170,25 @@ public class WatchedSync
         var since = await _stateStore.GetSyncedAtAsync(userId, Category, cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrEmpty(since))
         {
+            _logger.Debug("MDBList Sync: watched pull for user {0} has no cursor - running full pull", user.Name);
             return await PullFullAsync(userId, accessToken, user, snapshot, serverTime, trusted, cancellationToken).ConfigureAwait(false);
         }
 
         var journal = await _apiClient.FetchJournalAsync(accessToken, since, JournalPageSize, cancellationToken).ConfigureAwait(false);
         if (journal.RequiresFullSync)
         {
+            _logger.Debug(
+                "MDBList Sync: watched pull cursor {0} for user {1} is outside journal retention - running full pull",
+                since,
+                user.Name);
             return await PullFullAsync(userId, accessToken, user, snapshot, serverTime, trusted, cancellationToken).ConfigureAwait(false);
         }
 
+        _logger.Debug(
+            "MDBList Sync: watched pull cursor {0} for user {1} - running incremental pull ({2} journal entries)",
+            since,
+            user.Name,
+            journal.Entries.Count);
         return await PullIncrementalAsync(userId, user, journal.Entries, snapshot, serverTime, cancellationToken).ConfigureAwait(false);
     }
 
@@ -191,6 +201,12 @@ public class WatchedSync
         // every provider id.
         var data = await _apiClient.FetchSyncItemsAsync(accessToken, Endpoint, mediatype: null, since: null, extended: null, JournalPageSize, cancellationToken)
             .ConfigureAwait(false);
+
+        _logger.Debug(
+            "MDBList Sync: watched full pull for user {0} fetched {1} movies, {2} episodes from MDBList",
+            user.Name,
+            data.Movies.Count,
+            data.Episodes.Count);
 
         var applied = 0;
         var matchedKeys = new HashSet<string>(StringComparer.Ordinal);
@@ -223,7 +239,7 @@ public class WatchedSync
                 continue;
             }
 
-            var (appliedOk, key) = ApplyEpisodeEntry(user, snapshot, showIds, entry.Episode?.Season, entry.Episode?.Number, "active", entry.LastWatchedAt);
+            var (appliedOk, key) = ApplyEpisodeEntry(user, snapshot, showIds, entry.Episode?.Season, entry.Episode?.Number, entry.Episode?.Ids, "active", entry.LastWatchedAt);
             if (key is not null)
             {
                 matchedKeys.Add(key);
@@ -360,6 +376,7 @@ public class WatchedSync
         CancellationToken cancellationToken)
     {
         var applied = 0;
+        var skippedType = 0;
 
         foreach (var entry in entries)
         {
@@ -388,14 +405,25 @@ public class WatchedSync
             }
             else if (entry.ItemType == "episode")
             {
-                var (appliedOk, _) = ApplyEpisodeEntry(user, snapshot, entry.Ids, entry.Season, entry.Episode, entry.Status, remoteAt);
+                var (appliedOk, _) = ApplyEpisodeEntry(user, snapshot, entry.Ids, entry.Season, entry.Episode, entry.EpisodeIds, entry.Status, remoteAt);
                 if (appliedOk)
                 {
                     applied++;
                 }
             }
+            else
+            {
+                // show/season-level rows have no directly writable Emby field; skipped
+                skippedType++;
+            }
+        }
 
-            // show/season-level rows have no directly writable Emby field; skipped
+        if (skippedType > 0)
+        {
+            _logger.Debug(
+                "MDBList Sync: watched incremental pull for user {0} skipped {1} journal entries with unhandled item type",
+                user.Name,
+                skippedType);
         }
 
         await _stateStore.SetSyncedAtAsync(userId, Category, serverTime ?? NowIso(), cancellationToken).ConfigureAwait(false);
@@ -413,11 +441,20 @@ public class WatchedSync
         return (ApplyWatched(user, match, status, remoteAt), ItemKeys.CanonicalMovieKey(match.Ids));
     }
 
-    private (bool Applied, string? Key) ApplyEpisodeEntry(User user, LibrarySnapshot snapshot, MediaIds showIds, int? season, int? episode, string? status, string? remoteAt)
+    private (bool Applied, string? Key) ApplyEpisodeEntry(User user, LibrarySnapshot snapshot, MediaIds showIds, int? season, int? episode, MediaIds? episodeIds, string? status, string? remoteAt)
     {
-        var match = snapshot.FindEpisode(showIds, season, episode);
+        var match = snapshot.FindEpisode(showIds, season, episode, episodeIds);
         if (match is null)
         {
+            _logger.Debug(
+                "MDBList Sync: watched pull found no local match for show tmdb={0} imdb={1} tvdb={2} S{3}E{4} episodeTmdb={5} episodeTvdb={6}",
+                showIds.Tmdb,
+                showIds.Imdb,
+                showIds.Tvdb,
+                season,
+                episode,
+                episodeIds?.Tmdb,
+                episodeIds?.Tvdb);
             return (false, null);
         }
 
