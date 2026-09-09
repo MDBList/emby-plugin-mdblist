@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Emby.Plugin.MDBList.Api.Models;
 using Emby.Plugin.MDBList.Configuration;
+using Emby.Plugin.MDBList.Sync;
 using MediaBrowser.Common.Net;
 using MediaBrowser.Model.Logging;
 using HttpRequestOptions = MediaBrowser.Common.Net.HttpRequestOptions;
@@ -34,6 +35,7 @@ public class OAuthService : IDisposable
 
     private readonly IHttpClient _httpClient;
     private readonly MDBListApiClient _apiClient;
+    private readonly SyncStateStore _stateStore;
     private readonly ILogger _logger;
 
     /// <summary>
@@ -41,11 +43,13 @@ public class OAuthService : IDisposable
     /// </summary>
     /// <param name="httpClient">Instance of the <see cref="IHttpClient"/> interface.</param>
     /// <param name="apiClient">Instance of the <see cref="MDBListApiClient"/>.</param>
+    /// <param name="stateStore">Instance of the <see cref="SyncStateStore"/>.</param>
     /// <param name="logManager">Instance of the <see cref="ILogManager"/> interface.</param>
-    public OAuthService(IHttpClient httpClient, MDBListApiClient apiClient, ILogManager logManager)
+    public OAuthService(IHttpClient httpClient, MDBListApiClient apiClient, SyncStateStore stateStore, ILogManager logManager)
     {
         _httpClient = httpClient;
         _apiClient = apiClient;
+        _stateStore = stateStore;
         _logger = logManager.GetLogger("MDBList.OAuth");
     }
 
@@ -218,6 +222,12 @@ public class OAuthService : IDisposable
         {
             _configLock.Release();
         }
+
+        // A reconnect (same or different MDBList account) must not resume
+        // against the previous account's cursors/known-items -- wipe this
+        // user's sync bookkeeping so the next run is a clean full resync.
+        await _stateStore.ResetUserAsync(embyUserId, cancellationToken).ConfigureAwait(false);
+        _logger.Info("MDBList Sync: cleared sync state for user {0} on disconnect", embyUserId);
     }
 
     /// <summary>

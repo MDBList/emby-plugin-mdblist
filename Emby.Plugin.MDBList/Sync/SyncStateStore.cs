@@ -243,6 +243,22 @@ public sealed class SyncStateStore : IDisposable
             cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Wipes all sync bookkeeping (cursors, known-items, last-activities
+    /// watermark, last-run summary) for one user -- used on disconnect so a
+    /// reconnect (same or a different MDBList account) starts a clean full
+    /// resync instead of diffing against a stale/foreign baseline.
+    /// </summary>
+    /// <param name="userId">The Emby user.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    public async Task ResetUserAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        await MutateAsync(
+            file => file.Users.Remove(userId.ToString()),
+            cancellationToken).ConfigureAwait(false);
+    }
+
     private static CategoryState GetCategoryState(UserSyncState userState, SyncCategory category)
     {
         return category switch
