@@ -210,6 +210,7 @@ public class WatchedSync
 
         var applied = 0;
         var matchedKeys = new HashSet<string>(StringComparer.Ordinal);
+        var changes = new PulledStateChanges();
 
         foreach (var entry in data.Movies)
         {
@@ -219,7 +220,7 @@ public class WatchedSync
                 continue;
             }
 
-            var (appliedOk, key) = ApplyMovieEntry(user, snapshot, ids, "active", entry.LastWatchedAt);
+            var (appliedOk, key) = ApplyMovieEntry(user, snapshot, ids, "active", entry.LastWatchedAt, changes);
             if (key is not null)
             {
                 matchedKeys.Add(key);
@@ -239,7 +240,7 @@ public class WatchedSync
                 continue;
             }
 
-            var (appliedOk, key) = ApplyEpisodeEntry(user, snapshot, showIds, entry.Episode?.Season, entry.Episode?.Number, entry.Episode?.Ids, "active", entry.LastWatchedAt);
+            var (appliedOk, key) = ApplyEpisodeEntry(user, snapshot, showIds, entry.Episode?.Season, entry.Episode?.Number, entry.Episode?.Ids, "active", entry.LastWatchedAt, changes);
             if (key is not null)
             {
                 matchedKeys.Add(key);
@@ -297,12 +298,14 @@ public class WatchedSync
             var removalAt = serverTime ?? NowIso();
             foreach (var (record, _) in candidateRemovals)
             {
-                if (ApplyWatched(user, record, "removed", removalAt))
+                if (ApplyWatched(user, record, "removed", removalAt, changes))
                 {
                     applied++;
                 }
             }
         }
+
+        await PersistPulledStateAsync(userId, changes, cancellationToken).ConfigureAwait(false);
 
         if (holdRemovals)
         {
@@ -377,6 +380,7 @@ public class WatchedSync
     {
         var applied = 0;
         var skippedType = 0;
+        var changes = new PulledStateChanges();
 
         foreach (var entry in entries)
         {
@@ -397,7 +401,7 @@ public class WatchedSync
 
             if (entry.ItemType == "movie")
             {
-                var (appliedOk, _) = ApplyMovieEntry(user, snapshot, entry.Ids, entry.Status, remoteAt);
+                var (appliedOk, _) = ApplyMovieEntry(user, snapshot, entry.Ids, entry.Status, remoteAt, changes);
                 if (appliedOk)
                 {
                     applied++;
@@ -405,7 +409,7 @@ public class WatchedSync
             }
             else if (entry.ItemType == "episode")
             {
-                var (appliedOk, _) = ApplyEpisodeEntry(user, snapshot, entry.Ids, entry.Season, entry.Episode, entry.EpisodeIds, entry.Status, remoteAt);
+                var (appliedOk, _) = ApplyEpisodeEntry(user, snapshot, entry.Ids, entry.Season, entry.Episode, entry.EpisodeIds, entry.Status, remoteAt, changes);
                 if (appliedOk)
                 {
                     applied++;
@@ -426,11 +430,12 @@ public class WatchedSync
                 skippedType);
         }
 
+        await PersistPulledStateAsync(userId, changes, cancellationToken).ConfigureAwait(false);
         await _stateStore.SetSyncedAtAsync(userId, Category, serverTime ?? NowIso(), cancellationToken).ConfigureAwait(false);
         return new PullResult { PulledApplied = applied, Mode = "incremental" };
     }
 
-    private (bool Applied, string? Key) ApplyMovieEntry(User user, LibrarySnapshot snapshot, MediaIds ids, string? status, string? remoteAt)
+    private (bool Applied, string? Key) ApplyMovieEntry(User user, LibrarySnapshot snapshot, MediaIds ids, string? status, string? remoteAt, PulledStateChanges changes)
     {
         var match = snapshot.FindMovie(ids);
         if (match is null)
@@ -438,10 +443,10 @@ public class WatchedSync
             return (false, null);
         }
 
-        return (ApplyWatched(user, match, status, remoteAt), ItemKeys.CanonicalMovieKey(match.Ids));
+        return (ApplyWatched(user, match, status, remoteAt, changes), ItemKeys.CanonicalMovieKey(match.Ids));
     }
 
-    private (bool Applied, string? Key) ApplyEpisodeEntry(User user, LibrarySnapshot snapshot, MediaIds showIds, int? season, int? episode, MediaIds? episodeIds, string? status, string? remoteAt)
+    private (bool Applied, string? Key) ApplyEpisodeEntry(User user, LibrarySnapshot snapshot, MediaIds showIds, int? season, int? episode, MediaIds? episodeIds, string? status, string? remoteAt, PulledStateChanges changes)
     {
         var match = snapshot.FindEpisode(showIds, season, episode, episodeIds);
         if (match is null)
@@ -459,7 +464,7 @@ public class WatchedSync
         }
 
         var key = ItemKeys.CanonicalEpisodeKey(match.Ids, match.Season, match.EpisodeNumber);
-        return (ApplyWatched(user, match, status, remoteAt), key);
+        return (ApplyWatched(user, match, status, remoteAt, changes), key);
     }
 
     /// <summary>
@@ -468,7 +473,7 @@ public class WatchedSync
     /// wins -- one consistent rule rather than local winning on removal but
     /// losing on activation.
     /// </summary>
-    private bool ApplyWatched(User user, SnapshotItem record, string? status, string? remoteAt)
+    private bool ApplyWatched(User user, SnapshotItem record, string? status, string? remoteAt, PulledStateChanges changes)
     {
         var localTs = record.LastPlayedDate;
         var remoteTs = ParseTimestamp(remoteAt);
@@ -479,13 +484,29 @@ public class WatchedSync
             return false;
         }
 
+        // Record what this change makes MDBList and Emby agree on, for the
+        // known-items state: without it the next push diffs a pulled watch as a
+        // new local one and pushes it back -- undoing a later remote unwatch.
+        var key = CanonicalKey(record);
         if (removed)
         {
             SetWatched(user, record.ItemId, played: false, playCount: 0, lastPlayedDate: null);
+            if (key is not null)
+            {
+                changes.Removed.Add(key);
+                changes.Upserts.Remove(key);
+            }
         }
         else
         {
-            SetWatched(user, record.ItemId, played: true, playCount: Math.Max(record.PlayCount, 1), lastPlayedDate: remoteTs ?? record.LastPlayedDate);
+            var savedLastPlayed = SetWatched(user, record.ItemId, played: true, playCount: Math.Max(record.PlayCount, 1), lastPlayedDate: remoteTs ?? record.LastPlayedDate);
+            if (key is not null)
+            {
+                // Built from what Emby now reports, the same way the next push
+                // reads the library, so that push sees nothing new to send.
+                changes.Upserts[key] = BuildKnownItem(record, savedLastPlayed);
+                changes.Removed.Remove(key);
+            }
         }
 
         return true;
@@ -517,12 +538,13 @@ public class WatchedSync
         return !(localPlayCount > 0 && localTs.HasValue && remoteTs.HasValue && localTs > remoteTs);
     }
 
-    private void SetWatched(User user, Guid itemId, bool played, int playCount, DateTimeOffset? lastPlayedDate)
+    /// <returns>The item's LastPlayedDate as Emby stored it, read back after saving.</returns>
+    private DateTimeOffset? SetWatched(User user, Guid itemId, bool played, int playCount, DateTimeOffset? lastPlayedDate)
     {
         var item = _libraryManager.GetItemById(itemId);
         if (item is null)
         {
-            return;
+            return lastPlayedDate;
         }
 
         var userData = _userDataManager.GetUserData(user, item) ?? new UserItemData { Key = item.UserDataKey };
@@ -538,6 +560,17 @@ public class WatchedSync
         }
 
         _userDataManager.SaveUserData(user, item, userData, UserDataSaveReason.Import, CancellationToken.None);
+        return _userDataManager.GetUserData(user, item)?.LastPlayedDate ?? userData.LastPlayedDate;
+    }
+
+    private async Task PersistPulledStateAsync(Guid userId, PulledStateChanges changes, CancellationToken cancellationToken)
+    {
+        if (changes.Upserts.Count == 0 && changes.Removed.Count == 0)
+        {
+            return;
+        }
+
+        await _stateStore.MergeKnownItemsAsync(userId, Category, changes.Upserts, changes.Removed.ToList(), cancellationToken).ConfigureAwait(false);
     }
 
     private static DateTimeOffset? ParseTimestamp(string? value)
@@ -566,6 +599,11 @@ public class WatchedSync
 
     private static KnownSyncItem BuildKnownItem(SnapshotItem record)
     {
+        return BuildKnownItem(record, record.LastPlayedDate);
+    }
+
+    private static KnownSyncItem BuildKnownItem(SnapshotItem record, DateTimeOffset? lastPlayedDate)
+    {
         return new KnownSyncItem
         {
             Type = record.Type,
@@ -573,7 +611,7 @@ public class WatchedSync
             EpisodeIds = record.EpisodeIds,
             Season = record.Season,
             Episode = record.EpisodeNumber,
-            WatchedAt = record.LastPlayedDate?.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture),
+            WatchedAt = lastPlayedDate?.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture),
         };
     }
 
@@ -615,5 +653,16 @@ public class WatchedSync
         }
 
         return items;
+    }
+
+    /// <summary>
+    /// Known-items changes from one pull run: items it made watched in Emby
+    /// (upserts) and unwatched (removed).
+    /// </summary>
+    private sealed class PulledStateChanges
+    {
+        public Dictionary<string, KnownSyncItem> Upserts { get; } = new(StringComparer.Ordinal);
+
+        public HashSet<string> Removed { get; } = new(StringComparer.Ordinal);
     }
 }
