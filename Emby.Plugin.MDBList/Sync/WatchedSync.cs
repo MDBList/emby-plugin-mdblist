@@ -570,6 +570,7 @@ public class WatchedSync
         {
             Type = record.Type,
             Ids = record.Ids,
+            EpisodeIds = record.EpisodeIds,
             Season = record.Season,
             Episode = record.EpisodeNumber,
             WatchedAt = record.LastPlayedDate?.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture),

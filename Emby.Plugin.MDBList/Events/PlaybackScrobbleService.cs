@@ -234,6 +234,7 @@ public sealed class PlaybackScrobbleService
                 return null;
             }
 
+            var episodeIds = MediaIdMapper.MapShowIds(episode.ProviderIds);
             return new ScrobbleRequest
             {
                 Show = new ScrobbleShowRef
@@ -242,7 +243,11 @@ public sealed class PlaybackScrobbleService
                     Season = new ScrobbleSeasonRef
                     {
                         Number = episode.ParentIndexNumber,
-                        Episode = new ScrobbleEpisodeRef { Number = episode.IndexNumber },
+                        Episode = new ScrobbleEpisodeRef
+                        {
+                            Number = episode.IndexNumber,
+                            Ids = episodeIds.IsEmpty ? null : episodeIds,
+                        },
                     },
                 },
                 Progress = progress.Value,
