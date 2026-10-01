@@ -78,7 +78,7 @@ public class CollectionSync
             Ids = record.Ids,
             Season = record.Season,
             Episode = record.EpisodeNumber,
-            CollectedAt = record.DateCreated.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture),
+            CollectedAt = record.DateCreated.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture),
         };
     }
 

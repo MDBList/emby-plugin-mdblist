@@ -743,7 +743,7 @@ public class WatchedSync
             EpisodeIds = record.EpisodeIds,
             Season = record.Season,
             Episode = record.EpisodeNumber,
-            WatchedAt = lastPlayedDate?.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture),
+            WatchedAt = lastPlayedDate?.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture),
         };
     }
 
