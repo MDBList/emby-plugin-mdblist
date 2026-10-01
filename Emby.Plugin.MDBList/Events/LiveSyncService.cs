@@ -46,6 +46,11 @@ public class LiveSyncService
         UserDataSaveReason.UpdateUserRating,
     ];
 
+    // Longer than any sync should take -- a push still waiting after this is
+    // left to the next full run
+    private static readonly TimeSpan LockWaitTimeout = TimeSpan.FromMinutes(30);
+
+    private readonly IUserDataManager _userDataManager;
     private readonly OAuthService _oauthService;
     private readonly WatchedSync _watchedSync;
     private readonly RatingsSync _ratingsSync;
@@ -55,13 +60,15 @@ public class LiveSyncService
     /// <summary>
     /// Initializes a new instance of the <see cref="LiveSyncService"/> class.
     /// </summary>
+    /// <param name="userDataManager">Instance of the <see cref="IUserDataManager"/> interface.</param>
     /// <param name="oauthService">Instance of the <see cref="OAuthService"/>.</param>
     /// <param name="watchedSync">Instance of the <see cref="WatchedSync"/>.</param>
     /// <param name="ratingsSync">Instance of the <see cref="RatingsSync"/>.</param>
     /// <param name="orchestrator">Instance of the <see cref="SyncOrchestrator"/>.</param>
     /// <param name="logManager">Instance of the <see cref="ILogManager"/> interface.</param>
-    public LiveSyncService(OAuthService oauthService, WatchedSync watchedSync, RatingsSync ratingsSync, SyncOrchestrator orchestrator, ILogManager logManager)
+    public LiveSyncService(IUserDataManager userDataManager, OAuthService oauthService, WatchedSync watchedSync, RatingsSync ratingsSync, SyncOrchestrator orchestrator, ILogManager logManager)
     {
+        _userDataManager = userDataManager;
         _oauthService = oauthService;
         _watchedSync = watchedSync;
         _ratingsSync = ratingsSync;
@@ -111,22 +118,41 @@ public class LiveSyncService
             return;
         }
 
-        _ = Task.Run(() => HandleAsync(e.User.Id, e.Item, e.UserData, pushWatched, pushRating));
+        _ = Task.Run(() => HandleAsync(e.User, e.Item, e.UserData, pushWatched, pushRating));
     }
 
-    private async Task HandleAsync(Guid userId, BaseItem item, UserItemData userData, bool pushWatched, bool pushRating)
+    private async Task HandleAsync(User user, BaseItem item, UserItemData userData, bool pushWatched, bool pushRating)
     {
-        using var handle = _orchestrator.TryLock();
+        var userId = user.Id;
+        var handle = _orchestrator.TryLock();
         if (handle is null)
         {
-            // A pull is in progress, most likely applying remote state to
-            // this same item right now -- skip rather than echo it straight
-            // back, instead of just checking once at entry (a pull starting
-            // mid-handler would be caught too, since the lock is held for
-            // the whole block below, not just this check).
-            return;
+            // A sync (or another live push) holds the lock. Wait for it rather
+            // than drop this push: the pull's own writes never get here (saved
+            // with reason Import, filtered above), so this is a real user
+            // change. The lock is held for the whole block below, not just
+            // checked once, so a pull starting mid-handler can't race it.
+            try
+            {
+                handle = await _orchestrator.WaitLockAsync(LockWaitTimeout).ConfigureAwait(false);
+            }
+            catch (ObjectDisposedException)
+            {
+                return;
+            }
+
+            if (handle is null)
+            {
+                _logger.Debug("MDBList live push for {0} dropped - sync still running", item.Name);
+                return;
+            }
+
+            // The item may have changed again while waiting (e.g. toggled
+            // twice) -- push its current state, not this event's
+            userData = _userDataManager.GetUserData(user, item) ?? userData;
         }
 
+        using var heldLock = handle;
         try
         {
             var record = BuildRecord(item, userData);
