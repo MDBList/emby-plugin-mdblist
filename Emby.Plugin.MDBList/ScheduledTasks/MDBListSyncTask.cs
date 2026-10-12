@@ -27,13 +27,13 @@ public class MDBListSyncTask : IScheduledTask
     }
 
     /// <inheritdoc />
-    public string Name => "MDBList Sync";
+    public string Name => Resources.Task_Sync_Name;
 
     /// <inheritdoc />
     public string Key => "MDBListSync";
 
     /// <inheritdoc />
-    public string Description => "Full push-and-pull reconciliation of watched status, ratings, and collection with MDBList.";
+    public string Description => Resources.Task_Sync_Desc;
 
     /// <inheritdoc />
     public string Category => "MDBList";

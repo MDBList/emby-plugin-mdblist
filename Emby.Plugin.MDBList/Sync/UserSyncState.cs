@@ -29,9 +29,10 @@ public class UserSyncState
     public Dictionary<string, string> LastActivitiesSeen { get; } = new();
 
     /// <summary>
-    /// Gets or sets a human-readable summary of the most recent sync run
-    /// (full or activity-triggered), shown on the config page. Null until
-    /// the first run completes.
+    /// Gets or sets the structured summary of the most recent sync run (full
+    /// or activity-triggered), rendered for display on the config page using
+    /// the requesting client's language at display time. Null until the first
+    /// run completes.
     /// </summary>
-    public string? LastRunSummary { get; set; }
+    public RunSummary? LastRun { get; set; }
 }

@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Settings_Description" xml:space="preserve">
+    <value>Two-way sync of watched status and ratings, collection membership, and live playback scrobbling with MDBList.</value>
+  </data>
+  <data name="User_Name" xml:space="preserve">
+    <value>Emby user</value>
+  </data>
+  <data name="User_Desc" xml:space="preserve">
+    <value>Each Emby user can connect their own MDBList account and set their own sync options independently.</value>
+  </data>
+  <data name="Status_Connection" xml:space="preserve">
+    <value>Connection</value>
+  </data>
+  <data name="Status_NotConnected" xml:space="preserve">
+    <value>Not connected.</value>
+  </data>
+  <data name="Status_LastRun" xml:space="preserve">
+    <value>Last run</value>
+  </data>
+  <data name="Status_NoSyncRun" xml:space="preserve">
+    <value>No sync has run yet.</value>
+  </data>
+  <data name="Caption_WhatToSync" xml:space="preserve">
+    <value>What to sync</value>
+  </data>
+  <data name="Caption_Status" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Button_Connect" xml:space="preserve">
+    <value>Connect to MDBList</value>
+  </data>
+  <data name="Button_Disconnect" xml:space="preserve">
+    <value>Disconnect</value>
+  </data>
+  <data name="Button_DisconnectPrompt" xml:space="preserve">
+    <value>Disconnect this Emby user from MDBList?</value>
+  </data>
+  <data name="Button_Test" xml:space="preserve">
+    <value>Test connection</value>
+  </data>
+  <data name="Button_SyncNow" xml:space="preserve">
+    <value>Sync now</value>
+  </data>
+  <data name="Opt_Watched_Name" xml:space="preserve">
+    <value>Watched status</value>
+  </data>
+  <data name="Opt_Watched_Desc" xml:space="preserve">
+    <value>Two-way sync of watched/unwatched state.</value>
+  </data>
+  <data name="Opt_Ratings_Name" xml:space="preserve">
+    <value>Ratings</value>
+  </data>
+  <data name="Opt_Ratings_Desc" xml:space="preserve">
+    <value>Two-way sync of ratings.</value>
+  </data>
+  <data name="Opt_Collection_Name" xml:space="preserve">
+    <value>Collection membership</value>
+  </data>
+  <data name="Opt_Collection_Desc" xml:space="preserve">
+    <value>Pushes which movies/shows are in your library to MDBList.</value>
+  </data>
+  <data name="Opt_Scrobbling_Name" xml:space="preserve">
+    <value>Live scrobbling</value>
+  </data>
+  <data name="Opt_Scrobbling_Desc" xml:space="preserve">
+    <value>Reports playback progress to MDBList in real time as you watch, independent of watched-status sync above.</value>
+  </data>
+  <data name="Opt_IgnoreThumb_Name" xml:space="preserve">
+    <value>Ignore thumbs-up/down as ratings</value>
+  </data>
+  <data name="Opt_IgnoreThumb_Desc" xml:space="preserve">
+    <value>Emby's thumbs button always writes a 10 or 1 rating regardless of intent -- leave this checked unless you want that pushed to MDBList as a real rating.</value>
+  </data>
+  <data name="Opt_SyncAfterScan_Name" xml:space="preserve">
+    <value>Sync after library scan</value>
+  </data>
+  <data name="Opt_SyncAfterScan_Desc" xml:space="preserve">
+    <value>Runs a full sync a few seconds after the library changes.</value>
+  </data>
+  <data name="Msg_Connected" xml:space="preserve">
+    <value>Connected to MDBList.</value>
+  </data>
+  <data name="Msg_RequestingCode" xml:space="preserve">
+    <value>Requesting device code...</value>
+  </data>
+  <data name="Msg_EnterCode" xml:space="preserve">
+    <value>Enter code {0} at {1}, then wait for confirmation...</value>
+  </data>
+  <data name="Msg_AuthDenied" xml:space="preserve">
+    <value>Authorization was denied.</value>
+  </data>
+  <data name="Msg_AuthExpired" xml:space="preserve">
+    <value>Authorization expired. Please try again.</value>
+  </data>
+  <data name="Msg_ConnectionFailed" xml:space="preserve">
+    <value>Connection failed: {0}</value>
+  </data>
+  <data name="Msg_Disconnecting" xml:space="preserve">
+    <value>Disconnecting...</value>
+  </data>
+  <data name="Msg_Testing" xml:space="preserve">
+    <value>Testing connection...</value>
+  </data>
+  <data name="Msg_TestOk" xml:space="preserve">
+    <value>Connected. MDBList server time: {0}</value>
+  </data>
+  <data name="Msg_TestFailed" xml:space="preserve">
+    <value>Connection test failed: {0}</value>
+  </data>
+  <data name="Msg_Syncing" xml:space="preserve">
+    <value>Syncing...</value>
+  </data>
+  <data name="Task_Sync_Name" xml:space="preserve">
+    <value>MDBList Sync</value>
+  </data>
+  <data name="Task_Sync_Desc" xml:space="preserve">
+    <value>Full push-and-pull reconciliation of watched status, ratings, and collection with MDBList.</value>
+  </data>
+  <data name="Task_Activity_Name" xml:space="preserve">
+    <value>MDBList Activity Check</value>
+  </data>
+  <data name="Task_Activity_Desc" xml:space="preserve">
+    <value>Checks MDBList for new activity and pulls watched-status/ratings changes if anything changed.</value>
+  </data>
+  <data name="Summary_Watched" xml:space="preserve">
+    <value>watched push +{0}/-{1}{2} pull {3}{4} ({5})</value>
+  </data>
+  <data name="Summary_Ratings" xml:space="preserve">
+    <value>ratings push +{0}/-{1}{2} pull {3} ({4})</value>
+  </data>
+  <data name="Summary_Collection" xml:space="preserve">
+    <value>collection push +{0}/-{1}{2}</value>
+  </data>
+  <data name="Summary_PushSkipped" xml:space="preserve">
+    <value> ({0} skipped)</value>
+  </data>
+  <data name="Summary_PullSkipped" xml:space="preserve">
+    <value> ({0} unwatch skipped)</value>
+  </data>
+  <data name="Summary_WatchedSkipped" xml:space="preserve">
+    <value>watched skipped</value>
+  </data>
+  <data name="Summary_RatingsSkipped" xml:space="preserve">
+    <value>ratings skipped</value>
+  </data>
+  <data name="Summary_CollectionSkipped" xml:space="preserve">
+    <value>collection skipped</value>
+  </data>
+  <data name="Summary_EmptyLibrary" xml:space="preserve">
+    <value>sync skipped - local library looks empty</value>
+  </data>
+  <data name="Summary_Failed" xml:space="preserve">
+    <value>run failed: {0}</value>
+  </data>
+  <data name="Summary_Mode_Full" xml:space="preserve">
+    <value>full</value>
+  </data>
+  <data name="Summary_Mode_Incremental" xml:space="preserve">
+    <value>incremental</value>
+  </data>
+  <data name="Summary_PullOnly_Watched" xml:space="preserve">
+    <value>watched pull {0}{1} ({2})</value>
+  </data>
+  <data name="Summary_PullOnly_Ratings" xml:space="preserve">
+    <value>ratings pull {0} ({1})</value>
+  </data>
+  <data name="Summary_ActivityPrefix" xml:space="preserve">
+    <value>activity check: {0}</value>
+  </data>
+  <data name="Summary_Separator" xml:space="preserve">
+    <value>, </value>
+  </data>
+</root>
