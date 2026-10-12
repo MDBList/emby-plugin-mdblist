@@ -5,6 +5,9 @@
          has zero Emby SDK dependency (pure logic only), so there's no
          reason to require a second installed runtime just for this. -->
     <TargetFramework>net9.0</TargetFramework>
+    <!-- Allows the test host to run on a newer major runtime (e.g. .NET 10)
+         when no matching .NET 9 runtime is installed on the build machine. -->
+    <RollForward>Major</RollForward>
     <RootNamespace>Emby.Plugin.MDBList.Tests</RootNamespace>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>

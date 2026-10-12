@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Settings_Description" xml:space="preserve">
+    <value>与 MDBList 双向同步观看状态与评分、合集成员关系，并实时上报播放进度（scrobble）。</value>
+  </data>
+  <data name="User_Name" xml:space="preserve">
+    <value>Emby 用户</value>
+  </data>
+  <data name="User_Desc" xml:space="preserve">
+    <value>每个 Emby 用户都可以连接自己的 MDBList 账号，并独立设置各自的同步选项。</value>
+  </data>
+  <data name="Status_Connection" xml:space="preserve">
+    <value>连接状态</value>
+  </data>
+  <data name="Status_NotConnected" xml:space="preserve">
+    <value>未连接。</value>
+  </data>
+  <data name="Status_LastRun" xml:space="preserve">
+    <value>上次运行</value>
+  </data>
+  <data name="Status_NoSyncRun" xml:space="preserve">
+    <value>尚未执行过同步。</value>
+  </data>
+  <data name="Caption_WhatToSync" xml:space="preserve">
+    <value>同步内容</value>
+  </data>
+  <data name="Caption_Status" xml:space="preserve">
+    <value>状态</value>
+  </data>
+  <data name="Button_Connect" xml:space="preserve">
+    <value>连接到 MDBList</value>
+  </data>
+  <data name="Button_Disconnect" xml:space="preserve">
+    <value>断开连接</value>
+  </data>
+  <data name="Button_DisconnectPrompt" xml:space="preserve">
+    <value>确定要将此 Emby 用户与 MDBList 断开连接吗？</value>
+  </data>
+  <data name="Button_Test" xml:space="preserve">
+    <value>测试连接</value>
+  </data>
+  <data name="Button_SyncNow" xml:space="preserve">
+    <value>立即同步</value>
+  </data>
+  <data name="Opt_Watched_Name" xml:space="preserve">
+    <value>观看状态</value>
+  </data>
+  <data name="Opt_Watched_Desc" xml:space="preserve">
+    <value>双向同步已观看/未观看状态。</value>
+  </data>
+  <data name="Opt_Ratings_Name" xml:space="preserve">
+    <value>评分</value>
+  </data>
+  <data name="Opt_Ratings_Desc" xml:space="preserve">
+    <value>双向同步评分。</value>
+  </data>
+  <data name="Opt_Collection_Name" xml:space="preserve">
+    <value>合集成员</value>
+  </data>
+  <data name="Opt_Collection_Desc" xml:space="preserve">
+    <value>将你媒体库中的电影/剧集推送到 MDBList。</value>
+  </data>
+  <data name="Opt_Scrobbling_Name" xml:space="preserve">
+    <value>实时上报播放进度</value>
+  </data>
+  <data name="Opt_Scrobbling_Desc" xml:space="preserve">
+    <value>在你观看时实时向 MDBList 上报播放进度，与上面的观看状态同步相互独立。</value>
+  </data>
+  <data name="Opt_IgnoreThumb_Name" xml:space="preserve">
+    <value>忽略点赞/点踩作为评分</value>
+  </data>
+  <data name="Opt_IgnoreThumb_Desc" xml:space="preserve">
+    <value>Emby 的点赞按钮无论意图如何都会写入 10 或 1 的评分——除非你希望将其作为真实评分推送到 MDBList，否则请保持勾选。</value>
+  </data>
+  <data name="Opt_SyncAfterScan_Name" xml:space="preserve">
+    <value>媒体库扫描后同步</value>
+  </data>
+  <data name="Opt_SyncAfterScan_Desc" xml:space="preserve">
+    <value>媒体库变更几秒后执行一次完整同步。</value>
+  </data>
+  <data name="Msg_Connected" xml:space="preserve">
+    <value>已连接到 MDBList。</value>
+  </data>
+  <data name="Msg_RequestingCode" xml:space="preserve">
+    <value>正在请求设备码……</value>
+  </data>
+  <data name="Msg_EnterCode" xml:space="preserve">
+    <value>请在 {1} 输入代码 {0}，然后等待确认……</value>
+  </data>
+  <data name="Msg_AuthDenied" xml:space="preserve">
+    <value>授权被拒绝。</value>
+  </data>
+  <data name="Msg_AuthExpired" xml:space="preserve">
+    <value>授权已过期，请重试。</value>
+  </data>
+  <data name="Msg_ConnectionFailed" xml:space="preserve">
+    <value>连接失败：{0}</value>
+  </data>
+  <data name="Msg_Disconnecting" xml:space="preserve">
+    <value>正在断开连接……</value>
+  </data>
+  <data name="Msg_Testing" xml:space="preserve">
+    <value>正在测试连接……</value>
+  </data>
+  <data name="Msg_TestOk" xml:space="preserve">
+    <value>连接成功。MDBList 服务器时间：{0}</value>
+  </data>
+  <data name="Msg_TestFailed" xml:space="preserve">
+    <value>连接测试失败：{0}</value>
+  </data>
+  <data name="Msg_Syncing" xml:space="preserve">
+    <value>正在同步……</value>
+  </data>
+  <data name="Task_Sync_Name" xml:space="preserve">
+    <value>MDBList 同步</value>
+  </data>
+  <data name="Task_Sync_Desc" xml:space="preserve">
+    <value>对观看状态、评分和合集与 MDBList 进行完整的双向对账。</value>
+  </data>
+  <data name="Task_Activity_Name" xml:space="preserve">
+    <value>MDBList 活动检查</value>
+  </data>
+  <data name="Task_Activity_Desc" xml:space="preserve">
+    <value>检查 MDBList 是否有新活动，若有变更则拉取观看状态/评分的变化。</value>
+  </data>
+  <data name="Summary_Watched" xml:space="preserve">
+    <value>观看 推送 +{0}/-{1}{2} 拉取 {3}{4}（{5}）</value>
+  </data>
+  <data name="Summary_Ratings" xml:space="preserve">
+    <value>评分 推送 +{0}/-{1}{2} 拉取 {3}（{4}）</value>
+  </data>
+  <data name="Summary_Collection" xml:space="preserve">
+    <value>合集 推送 +{0}/-{1}{2}</value>
+  </data>
+  <data name="Summary_PushSkipped" xml:space="preserve">
+    <value>（跳过 {0} 项）</value>
+  </data>
+  <data name="Summary_PullSkipped" xml:space="preserve">
+    <value>（跳过取消观看 {0} 项）</value>
+  </data>
+  <data name="Summary_WatchedSkipped" xml:space="preserve">
+    <value>观看同步已跳过</value>
+  </data>
+  <data name="Summary_RatingsSkipped" xml:space="preserve">
+    <value>评分同步已跳过</value>
+  </data>
+  <data name="Summary_CollectionSkipped" xml:space="preserve">
+    <value>合集同步已跳过</value>
+  </data>
+  <data name="Summary_EmptyLibrary" xml:space="preserve">
+    <value>同步已跳过 - 本地媒体库为空</value>
+  </data>
+  <data name="Summary_Failed" xml:space="preserve">
+    <value>运行失败：{0}</value>
+  </data>
+  <data name="Summary_Mode_Full" xml:space="preserve">
+    <value>全量</value>
+  </data>
+  <data name="Summary_Mode_Incremental" xml:space="preserve">
+    <value>增量</value>
+  </data>
+  <data name="Summary_PullOnly_Watched" xml:space="preserve">
+    <value>观看 拉取 {0}{1}（{2}）</value>
+  </data>
+  <data name="Summary_PullOnly_Ratings" xml:space="preserve">
+    <value>评分 拉取 {0}（{1}）</value>
+  </data>
+  <data name="Summary_ActivityPrefix" xml:space="preserve">
+    <value>活动检查：{0}</value>
+  </data>
+  <data name="Summary_Separator" xml:space="preserve">
+    <value>，</value>
+  </data>
+</root>

@@ -4,6 +4,7 @@ using Emby.Web.GenericEdit;
 using Emby.Web.GenericEdit.Common;
 using Emby.Web.GenericEdit.Elements;
 using MediaBrowser.Model.Attributes;
+using MediaBrowser.Model.LocalizationAttributes;
 
 namespace Emby.Plugin.MDBList.UI;
 
@@ -24,8 +25,7 @@ public class MDBListOptions : EditableOptionsBase
     public override string EditorTitle => "MDBList";
 
     /// <inheritdoc />
-    public override string EditorDescription =>
-        "Two-way sync of watched status and ratings, collection membership, and live playback scrobbling with MDBList.";
+    public override string EditorDescription => Resources.Settings_Description;
 
     /// <summary>
     /// Gets or sets the source list for <see cref="SelectedUserId"/> --
@@ -39,8 +39,8 @@ public class MDBListOptions : EditableOptionsBase
     /// Gets or sets the currently-selected Emby user's id (as a string --
     /// the framework's select-source binding is string-keyed).
     /// </summary>
-    [DisplayName("Emby user")]
-    [Description("Each Emby user can connect their own MDBList account and set their own sync options independently.")]
+    [DisplayNameL("User_Name", ResourceType = typeof(Resources))]
+    [DescriptionL("User_Desc", ResourceType = typeof(Resources))]
     [SelectItemsSource(nameof(AvailableUsers))]
     [AutoPostBack("UserChanged", nameof(SelectedUserId))]
     public string SelectedUserId { get; set; } = string.Empty;
@@ -48,7 +48,7 @@ public class MDBListOptions : EditableOptionsBase
     /// <summary>
     /// Gets or sets the connection status display.
     /// </summary>
-    public StatusItem ConnectionStatus { get; set; } = new("Connection", "Not connected.", ItemStatus.Unavailable);
+    public StatusItem ConnectionStatus { get; set; } = new(Resources.Status_Connection, Resources.Status_NotConnected, ItemStatus.Unavailable);
 
     /// <summary>
     /// Gets or sets the device-authorization user code, shown while a
@@ -64,23 +64,23 @@ public class MDBListOptions : EditableOptionsBase
     /// <summary>
     /// Gets or sets the "Connect to MDBList" button.
     /// </summary>
-    public ButtonItem ConnectButton { get; set; } = new("Connect to MDBList") { Icon = IconNames.link, Data1 = "Connect" };
+    public ButtonItem ConnectButton { get; set; } = new(Resources.Button_Connect) { Icon = IconNames.link, Data1 = "Connect" };
 
     /// <summary>
     /// Gets or sets the "Disconnect" button.
     /// </summary>
-    public ButtonItem DisconnectButton { get; set; } = new("Disconnect")
+    public ButtonItem DisconnectButton { get; set; } = new(Resources.Button_Disconnect)
     {
         Icon = IconNames.link_off,
         Data1 = "Disconnect",
         IsVisible = false,
-        ConfirmationPrompt = "Disconnect this Emby user from MDBList?",
+        ConfirmationPrompt = Resources.Button_DisconnectPrompt,
     };
 
     /// <summary>
     /// Gets or sets the "Test connection" button.
     /// </summary>
-    public ButtonItem TestButton { get; set; } = new("Test connection") { Icon = IconNames.cloud_done, Data1 = "Test", IsVisible = false };
+    public ButtonItem TestButton { get; set; } = new(Resources.Button_Test) { Icon = IconNames.cloud_done, Data1 = "Test", IsVisible = false };
 
     /// <summary>
     /// Gets or sets a spacer between the connection block and the sync settings.
@@ -90,49 +90,49 @@ public class MDBListOptions : EditableOptionsBase
     /// <summary>
     /// Gets or sets the sync-settings section caption -- hidden until connected.
     /// </summary>
-    public CaptionItem SettingsCaption { get; set; } = new("What to sync") { IsVisible = false };
+    public CaptionItem SettingsCaption { get; set; } = new(Resources.Caption_WhatToSync) { IsVisible = false };
 
     /// <summary>
     /// Gets or sets a value indicating whether watched status syncs.
     /// </summary>
-    [DisplayName("Watched status")]
-    [Description("Two-way sync of watched/unwatched state.")]
+    [DisplayNameL("Opt_Watched_Name", ResourceType = typeof(Resources))]
+    [DescriptionL("Opt_Watched_Desc", ResourceType = typeof(Resources))]
     public bool WatchedEnabled { get; set; } = true;
 
     /// <summary>
     /// Gets or sets a value indicating whether ratings sync.
     /// </summary>
-    [DisplayName("Ratings")]
-    [Description("Two-way sync of ratings.")]
+    [DisplayNameL("Opt_Ratings_Name", ResourceType = typeof(Resources))]
+    [DescriptionL("Opt_Ratings_Desc", ResourceType = typeof(Resources))]
     public bool RatingsEnabled { get; set; } = true;
 
     /// <summary>
     /// Gets or sets a value indicating whether collection membership pushes.
     /// </summary>
-    [DisplayName("Collection membership")]
-    [Description("Pushes which movies/shows are in your library to MDBList.")]
+    [DisplayNameL("Opt_Collection_Name", ResourceType = typeof(Resources))]
+    [DescriptionL("Opt_Collection_Desc", ResourceType = typeof(Resources))]
     public bool CollectionEnabled { get; set; } = true;
 
     /// <summary>
     /// Gets or sets a value indicating whether live playback progress scrobbles.
     /// </summary>
-    [DisplayName("Live scrobbling")]
-    [Description("Reports playback progress to MDBList in real time as you watch, independent of watched-status sync above.")]
+    [DisplayNameL("Opt_Scrobbling_Name", ResourceType = typeof(Resources))]
+    [DescriptionL("Opt_Scrobbling_Desc", ResourceType = typeof(Resources))]
     public bool ScrobblingEnabled { get; set; } = true;
 
     /// <summary>
     /// Gets or sets a value indicating whether Emby's thumbs-up/down should
     /// be ignored rather than pushed as a rating.
     /// </summary>
-    [DisplayName("Ignore thumbs-up/down as ratings")]
-    [Description("Emby's thumbs button always writes a 10 or 1 rating regardless of intent -- leave this checked unless you want that pushed to MDBList as a real rating.")]
+    [DisplayNameL("Opt_IgnoreThumb_Name", ResourceType = typeof(Resources))]
+    [DescriptionL("Opt_IgnoreThumb_Desc", ResourceType = typeof(Resources))]
     public bool IgnoreThumbRatings { get; set; } = true;
 
     /// <summary>
     /// Gets or sets a value indicating whether a full sync follows a library scan.
     /// </summary>
-    [DisplayName("Sync after library scan")]
-    [Description("Runs a full sync a few seconds after the library changes.")]
+    [DisplayNameL("Opt_SyncAfterScan_Name", ResourceType = typeof(Resources))]
+    [DescriptionL("Opt_SyncAfterScan_Desc", ResourceType = typeof(Resources))]
     public bool SyncAfterLibraryScan { get; set; } = true;
 
     /// <summary>
@@ -143,15 +143,15 @@ public class MDBListOptions : EditableOptionsBase
     /// <summary>
     /// Gets or sets the status section caption -- hidden until connected.
     /// </summary>
-    public CaptionItem StatusCaption { get; set; } = new("Status") { IsVisible = false };
+    public CaptionItem StatusCaption { get; set; } = new(Resources.Caption_Status) { IsVisible = false };
 
     /// <summary>
     /// Gets or sets the last-run summary display.
     /// </summary>
-    public StatusItem LastRunStatus { get; set; } = new("Last run", "No sync has run yet.", ItemStatus.Unavailable);
+    public StatusItem LastRunStatus { get; set; } = new(Resources.Status_LastRun, Resources.Status_NoSyncRun, ItemStatus.Unavailable);
 
     /// <summary>
     /// Gets or sets the "Sync now" button.
     /// </summary>
-    public ButtonItem SyncNowButton { get; set; } = new("Sync now") { Icon = IconNames.sync, Data1 = "SyncNow", IsVisible = false };
+    public ButtonItem SyncNowButton { get; set; } = new(Resources.Button_SyncNow) { Icon = IconNames.sync, Data1 = "SyncNow", IsVisible = false };
 }

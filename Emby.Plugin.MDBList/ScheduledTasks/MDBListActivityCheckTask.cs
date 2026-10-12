@@ -33,13 +33,13 @@ public class MDBListActivityCheckTask : IScheduledTask
     }
 
     /// <inheritdoc />
-    public string Name => "MDBList Activity Check";
+    public string Name => Resources.Task_Activity_Name;
 
     /// <inheritdoc />
     public string Key => "MDBListActivityCheck";
 
     /// <inheritdoc />
-    public string Description => "Checks MDBList for new activity and pulls watched-status/ratings changes if anything changed.";
+    public string Description => Resources.Task_Activity_Desc;
 
     /// <inheritdoc />
     public string Category => "MDBList";
