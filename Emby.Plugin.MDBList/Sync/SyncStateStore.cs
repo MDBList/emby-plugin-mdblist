@@ -246,18 +246,18 @@ public sealed class SyncStateStore : IDisposable
     }
 
     /// <summary>
-    /// Gets the most recent sync run's summary text for the config page.
+    /// Gets the most recent sync run's structured summary for the config page.
     /// </summary>
     /// <param name="userId">The Emby user.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The summary, or null if no run has completed yet.</returns>
-    public async Task<string?> GetLastRunSummaryAsync(Guid userId, CancellationToken cancellationToken)
+    public async Task<RunSummary?> GetLastRunAsync(Guid userId, CancellationToken cancellationToken)
     {
         await _lock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             var file = await EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
-            return TryGetUserState(file, userId, out var userState) ? userState.LastRunSummary : null;
+            return TryGetUserState(file, userId, out var userState) ? userState.LastRun : null;
         }
         finally
         {
@@ -266,16 +266,16 @@ public sealed class SyncStateStore : IDisposable
     }
 
     /// <summary>
-    /// Records the most recent sync run's summary text.
+    /// Records the most recent sync run's structured summary.
     /// </summary>
     /// <param name="userId">The Emby user.</param>
-    /// <param name="summary">The summary text.</param>
+    /// <param name="summary">The summary.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task SetLastRunSummaryAsync(Guid userId, string summary, CancellationToken cancellationToken)
+    public async Task SetLastRunAsync(Guid userId, RunSummary summary, CancellationToken cancellationToken)
     {
         await MutateAsync(
-            file => GetOrCreateUserState(file, userId).LastRunSummary = summary,
+            file => GetOrCreateUserState(file, userId).LastRun = summary,
             cancellationToken).ConfigureAwait(false);
     }
 
