@@ -138,6 +138,7 @@ public class MDBListPageView : PluginPageView
             config.WatchedEnabled = Options.WatchedEnabled;
             config.RatingsEnabled = Options.RatingsEnabled;
             config.CollectionEnabled = Options.CollectionEnabled;
+            config.CollectionMediaInfoEnabled = Options.CollectionMediaInfoEnabled;
             config.ScrobblingEnabled = Options.ScrobblingEnabled;
             config.IgnoreThumbRatings = Options.IgnoreThumbRatings;
             config.SyncAfterLibraryScan = Options.SyncAfterLibraryScan;
@@ -177,6 +178,7 @@ public class MDBListPageView : PluginPageView
         opts.WatchedEnabled = config?.WatchedEnabled ?? true;
         opts.RatingsEnabled = config?.RatingsEnabled ?? true;
         opts.CollectionEnabled = config?.CollectionEnabled ?? true;
+        opts.CollectionMediaInfoEnabled = config?.CollectionMediaInfoEnabled ?? false;
         opts.ScrobblingEnabled = config?.ScrobblingEnabled ?? true;
         opts.IgnoreThumbRatings = config?.IgnoreThumbRatings ?? true;
         opts.SyncAfterLibraryScan = config?.SyncAfterLibraryScan ?? true;

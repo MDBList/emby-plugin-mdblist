@@ -114,6 +114,13 @@ public class MDBListOptions : EditableOptionsBase
     public bool CollectionEnabled { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets a value indicating whether collection pushes also send media info.
+    /// </summary>
+    [DisplayName("Also send media info (resolution, HDR, audio)")]
+    [Description("Sends each collected item's media info. Off by default: it makes syncs slower on big libraries.")]
+    public bool CollectionMediaInfoEnabled { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether live playback progress scrobbles.
     /// </summary>
     [DisplayName("Live scrobbling")]

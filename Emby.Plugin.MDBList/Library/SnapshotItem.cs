@@ -81,4 +81,15 @@ public class SnapshotItem
     /// "collected at" timestamp for collection sync.
     /// </summary>
     public DateTimeOffset DateCreated { get; init; }
+
+    /// <summary>
+    /// Gets when this item was last saved -- with <see cref="DateModified"/>,
+    /// what MediaInfoReader checks its cache against.
+    /// </summary>
+    public DateTimeOffset DateLastSaved { get; init; }
+
+    /// <summary>
+    /// Gets when this item's file last changed.
+    /// </summary>
+    public DateTimeOffset DateModified { get; init; }
 }
