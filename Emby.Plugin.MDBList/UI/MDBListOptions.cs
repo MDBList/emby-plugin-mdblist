@@ -116,8 +116,8 @@ public class MDBListOptions : EditableOptionsBase
     /// <summary>
     /// Gets or sets a value indicating whether collection pushes also send media info.
     /// </summary>
-    [DisplayName("Also send media info (resolution, HDR, audio)")]
-    [Description("Sends each collected item's media info. Off by default: it makes syncs slower on big libraries.")]
+    [DisplayNameL("Opt_MediaInfo_Name", ResourceType = typeof(Resources))]
+    [DescriptionL("Opt_MediaInfo_Desc", ResourceType = typeof(Resources))]
     public bool CollectionMediaInfoEnabled { get; set; }
 
     /// <summary>

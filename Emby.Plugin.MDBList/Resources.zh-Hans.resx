@@ -72,6 +72,12 @@
   <data name="Opt_Collection_Desc" xml:space="preserve">
     <value>将你媒体库中的电影/剧集推送到 MDBList。</value>
   </data>
+  <data name="Opt_MediaInfo_Name" xml:space="preserve">
+    <value>同时发送媒体信息（分辨率、HDR、音频）</value>
+  </data>
+  <data name="Opt_MediaInfo_Desc" xml:space="preserve">
+    <value>发送每个合集条目的媒体信息。默认关闭：这会拖慢大型媒体库的同步。</value>
+  </data>
   <data name="Opt_Scrobbling_Name" xml:space="preserve">
     <value>实时上报播放进度</value>
   </data>

@@ -73,6 +73,10 @@ public class Resources
 
     public static string Opt_Collection_Desc => Get(nameof(Opt_Collection_Desc));
 
+    public static string Opt_MediaInfo_Name => Get(nameof(Opt_MediaInfo_Name));
+
+    public static string Opt_MediaInfo_Desc => Get(nameof(Opt_MediaInfo_Desc));
+
     public static string Opt_Scrobbling_Name => Get(nameof(Opt_Scrobbling_Name));
 
     public static string Opt_Scrobbling_Desc => Get(nameof(Opt_Scrobbling_Desc));

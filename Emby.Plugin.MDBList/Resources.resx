@@ -72,6 +72,12 @@
   <data name="Opt_Collection_Desc" xml:space="preserve">
     <value>Pushes which movies/shows are in your library to MDBList.</value>
   </data>
+  <data name="Opt_MediaInfo_Name" xml:space="preserve">
+    <value>Also send media info (resolution, HDR, audio)</value>
+  </data>
+  <data name="Opt_MediaInfo_Desc" xml:space="preserve">
+    <value>Sends each collected item's media info. Off by default: it makes syncs slower on big libraries.</value>
+  </data>
   <data name="Opt_Scrobbling_Name" xml:space="preserve">
     <value>Live scrobbling</value>
   </data>
