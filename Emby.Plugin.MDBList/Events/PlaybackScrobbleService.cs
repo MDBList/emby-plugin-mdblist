@@ -37,10 +37,16 @@ public sealed class PlaybackScrobbleService
     private const string PauseEndpoint = "/scrobble/pause";
     private const string StopEndpoint = "/scrobble/stop";
 
-    // Emby's own automated progress reporting ticks frequently while a
-    // session is playing -- without a floor here, every active playback
-    // session would hammer /scrobble/start far more than needed.
-    private static readonly TimeSpan MinProgressInterval = TimeSpan.FromSeconds(15);
+    // Progress ticks arrive about every second; a start already carries the
+    // progress and MDBList runs the session on from it, so periodic pushes
+    // only matter when the server never sees a stop (crash, killed client).
+    // Pause, resume, seek and stop are still sent right away.
+    private static readonly TimeSpan MinProgressInterval = TimeSpan.FromMinutes(15);
+
+    // A tick whose position is further than this from where steady playback
+    // would have put it is a seek, sent right away: MDBList runs progress on
+    // from the last push, so it would be off until the next one otherwise.
+    private static readonly TimeSpan SeekTolerance = TimeSpan.FromSeconds(30);
 
     // How long periodic progress pushes pause for a user after a 429 that
     // carries no Retry-After.
@@ -83,7 +89,7 @@ public sealed class PlaybackScrobbleService
         // Recorded synchronously, before the send below even runs: an
         // automated progress tick can arrive very soon after, and it must
         // see "just sent" immediately, not race the async send.
-        var state = new SessionState { LastSentAt = DateTime.UtcNow };
+        var state = new SessionState { LastSentAt = DateTime.UtcNow, LastSentPositionTicks = e.PlaybackPositionTicks };
         _sessions[key] = state;
         Dispatch(e, StartEndpoint, playedToCompletion: false, state);
     }
@@ -126,13 +132,15 @@ public sealed class PlaybackScrobbleService
         }
 
         var now = DateTime.UtcNow;
-        if (!resuming && now - state.LastSentAt < MinProgressInterval)
+        var seeking = !resuming && IsSeek(state.LastSentPositionTicks, state.LastSentAt, e.PlaybackPositionTicks, now);
+        if (!resuming && !seeking && now - state.LastSentAt < MinProgressInterval)
         {
             return;
         }
 
         state.LastSentAt = now;
-        Dispatch(e, StartEndpoint, playedToCompletion: false, state, periodic: !resuming);
+        state.LastSentPositionTicks = e.PlaybackPositionTicks;
+        Dispatch(e, StartEndpoint, playedToCompletion: false, state, periodic: !resuming && !seeking);
     }
 
     /// <summary>
@@ -309,6 +317,26 @@ public sealed class PlaybackScrobbleService
         return null;
     }
 
+    /// <summary>
+    /// Whether a progress tick's position is off from where playback since
+    /// the last push would have put it by more than <see cref="SeekTolerance"/>.
+    /// </summary>
+    /// <param name="lastPositionTicks">The position last pushed.</param>
+    /// <param name="lastSentAt">When it was pushed.</param>
+    /// <param name="positionTicks">The tick's position.</param>
+    /// <param name="now">The tick's time.</param>
+    /// <returns>True when the tick is a seek.</returns>
+    internal static bool IsSeek(long? lastPositionTicks, DateTime lastSentAt, long? positionTicks, DateTime now)
+    {
+        if (lastPositionTicks is null || positionTicks is null)
+        {
+            return false;
+        }
+
+        var expected = lastPositionTicks.Value + (now - lastSentAt).Ticks;
+        return Math.Abs(positionTicks.Value - expected) > SeekTolerance.Ticks;
+    }
+
     internal static double? ComputeProgress(long? runTimeTicks, long? positionTicks)
     {
         if (runTimeTicks is null or <= 0 || positionTicks is null)
@@ -327,5 +355,7 @@ public sealed class PlaybackScrobbleService
         public bool TitleUnknown { get; set; }
 
         public DateTime LastSentAt { get; set; } = DateTime.MinValue;
+
+        public long? LastSentPositionTicks { get; set; }
     }
 }
