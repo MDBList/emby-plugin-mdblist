@@ -6,23 +6,27 @@
     <AssemblyName>Emby.Plugin.MDBList</AssemblyName>
     <Nullable>enable</Nullable>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
-    <!-- English is the neutral (default) resource; Resources.zh-Hans.resx is the
-         Simplified Chinese satellite. It is named zh-Hans (not zh-CN) on
-         purpose: Resource.Embedder discovers satellites by enumerating
-         CultureInfo.GetCultures(), and on modern .NET/ICU that list does NOT
-         contain "zh-CN" (it contains "zh-Hans"/"zh-Hans-CN"). A zh-CN folder is
-         therefore silently skipped ("Nothing to embed!"). At runtime .NET's
-         ResourceManager walks the parent chain zh-CN -> zh-Hans -> zh, so the
-         zh-Hans satellite also serves zh-CN requests. -->
+    <!-- English is the neutral (default) resource. It is named zh-Hans (not
+         zh-CN) on purpose: at runtime .NET walks the parent chain
+         zh-CN -> zh-Hans -> zh, and zh-Hans is the culture name that appears in
+         CultureInfo.GetCultures(). -->
     <NeutralResourcesLanguage>en</NeutralResourcesLanguage>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- Emby plugins ship as a single DLL and cannot load satellite-assembly
-         subfolders, so the per-language .resources compiled from
-         Resources.zh-Hans.resx are embedded into the main DLL instead. Emby's
-         own Plugin UI localization guidance requires this package. -->
-    <PackageReference Include="Resource.Embedder" Version="2.2.0" />
+         subfolders. Instead of a satellite assembly, compile the Simplified
+         Chinese resource set straight into the main DLL: WithCulture=false
+         keeps it out of the satellite-generation path, and LogicalName gives it
+         the name ResourceManager looks up for zh-Hans.
+
+         This replaces the Resource.Embedder package, which cannot run on Linux
+         build hosts: its 2.2.0 task turns Assembly.CodeBase's "file:///home/..."
+         into "home\\..." (Replace("/", "\\")), so code injection fails there. -->
+    <EmbeddedResource Update="Resources.zh-Hans.resx">
+      <WithCulture>false</WithCulture>
+      <LogicalName>Emby.Plugin.MDBList.Resources.zh-Hans.resources</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
   <PropertyGroup>
