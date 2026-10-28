@@ -19,6 +19,11 @@ This is a port of the design proven in
 
 Early development.
 
+## Scrobbling
+
+Start, pause, resume, seek and stop are sent to MDBList right away, plus
+the current progress every 15 minutes while playing.
+
 ## Installing
 
 Emby has no self-hosted plugin-repository mechanism for third-party plugins
