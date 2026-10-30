@@ -6,6 +6,7 @@
 // -- hence the explicit "public" members below. Kept as a plain (non-static)
 // class so it also works as a ResourceType anchor.
 //------------------------------------------------------------------------------
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Reflection;
 using System.Resources;
@@ -163,6 +164,10 @@ public class Resources
         private readonly Assembly _assembly;
         private readonly string _baseName;
 
+        // By manifest resource name, a miss included: every string lookup
+        // comes through here, and a set read once is the same set every time
+        private readonly ConcurrentDictionary<string, ResourceSet?> _sets = new();
+
         internal EmbeddedResourceManager(string baseName, Assembly assembly)
             : base(baseName, assembly)
         {
@@ -179,10 +184,10 @@ public class Resources
                     ? _baseName + ".resources"
                     : $"{_baseName}.{current.Name}.resources";
 
-                var stream = _assembly.GetManifestResourceStream(resourceName);
-                if (stream is not null)
+                var set = _sets.GetOrAdd(resourceName, Load);
+                if (set is not null)
                 {
-                    return new ResourceSet(stream);
+                    return set;
                 }
 
                 if (!tryParents || current.Equals(CultureInfo.InvariantCulture))
@@ -192,6 +197,12 @@ public class Resources
 
                 current = current.Parent;
             }
+        }
+
+        private ResourceSet? Load(string resourceName)
+        {
+            var stream = _assembly.GetManifestResourceStream(resourceName);
+            return stream is null ? null : new ResourceSet(stream);
         }
     }
 }
