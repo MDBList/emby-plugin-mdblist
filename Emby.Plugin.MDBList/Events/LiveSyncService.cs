@@ -118,10 +118,26 @@ public class LiveSyncService
             return;
         }
 
-        _ = Task.Run(() => HandleAsync(e.User, e.Item, e.UserData, pushWatched, pushRating));
+        // Taken now, not in the background task: that may wait out a sync
+        // first, and this save is the moment the playback ended
+        DateTimeOffset? finishedAt = pushWatched && e.SaveReason == UserDataSaveReason.PlaybackFinished ? DateTimeOffset.UtcNow : null;
+        _ = Task.Run(() => HandleAsync(e.User, e.Item, e.UserData, pushWatched, pushRating, finishedAt));
     }
 
-    private async Task HandleAsync(User user, BaseItem item, UserItemData userData, bool pushWatched, bool pushRating)
+    /// <summary>
+    /// Whether a <c>PlaybackFinished</c> save is a play to completion:
+    /// Emby resets the resume position to 0 and marks the item played then,
+    /// while a stop partway through keeps the position.
+    /// </summary>
+    /// <param name="played">The item's saved played flag.</param>
+    /// <param name="positionTicks">The item's saved resume position.</param>
+    /// <returns>True when the playback ran to completion.</returns>
+    internal static bool IsPlayedToCompletion(bool played, long positionTicks)
+    {
+        return played && positionTicks == 0;
+    }
+
+    private async Task HandleAsync(User user, BaseItem item, UserItemData userData, bool pushWatched, bool pushRating, DateTimeOffset? finishedAt)
     {
         var userId = user.Id;
         var handle = _orchestrator.TryLock();
@@ -155,6 +171,11 @@ public class LiveSyncService
         using var heldLock = handle;
         try
         {
+            if (finishedAt.HasValue && IsPlayedToCompletion(userData.Played, userData.PlaybackPositionTicks))
+            {
+                userData = StampFinishedAt(user, item, userData, finishedAt.Value);
+            }
+
             var record = BuildRecord(item, userData);
             if (record is null)
             {
@@ -181,6 +202,33 @@ public class LiveSyncService
         {
             _logger.Debug("MDBList live push failed: {0}", ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Emby sets <c>LastPlayedDate</c> when playback starts and leaves it
+    /// there when it finishes, so the watch would land on MDBList at the
+    /// start time. It's moved to when the playback finished, in Emby too:
+    /// the full sync pushes <c>LastPlayedDate</c>, and a push of the start
+    /// time after this one would read as a second, earlier play.
+    /// </summary>
+    /// <param name="user">The Emby user.</param>
+    /// <param name="item">The item that finished playing.</param>
+    /// <param name="userData">The item's user data as saved.</param>
+    /// <param name="finishedAt">When the playback finished.</param>
+    /// <returns>The item's user data with the finish time, as Emby stored it.</returns>
+    private UserItemData StampFinishedAt(User user, BaseItem item, UserItemData userData, DateTimeOffset finishedAt)
+    {
+        // A fresh copy, not the event's object Emby may still hold
+        var data = _userDataManager.GetUserData(user, item) ?? userData;
+
+        // Whole seconds, MDBList's precision, so the stored value and the
+        // pushed one compare equal on the next full sync
+        data.LastPlayedDate = DateTimeOffset.FromUnixTimeSeconds(finishedAt.ToUnixTimeSeconds());
+
+        // Saved as Import, which this service ignores above, so it doesn't
+        // come back here as another push
+        _userDataManager.SaveUserData(user, item, data, UserDataSaveReason.Import, CancellationToken.None);
+        return _userDataManager.GetUserData(user, item) ?? data;
     }
 
     private static SnapshotItem? BuildRecord(BaseItem item, UserItemData userData)
