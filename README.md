@@ -24,6 +24,14 @@ Early development.
 Start, pause, resume, seek and stop are sent to MDBList right away, plus
 the current progress every 15 minutes while playing.
 
+A movie or episode played to the end is marked watched on MDBList at the
+time playback finished, not when it started.
+
+## Languages
+
+The settings page is in English and Simplified Chinese, following Emby's
+language -- there's no language setting in the plugin itself.
+
 ## Installing
 
 Emby has no self-hosted plugin-repository mechanism for third-party plugins
