@@ -209,7 +209,7 @@ public sealed class SyncOrchestrator : IDisposable
                 _logger.Error(
                     "MDBList Sync: run aborted - library snapshot is empty but remote state is not; "
                         + "treating as an unreliable read rather than a real removal");
-                await _stateStore.SetLastRunSummaryAsync(user.Id, "sync skipped - local library looks empty", cancellationToken).ConfigureAwait(false);
+                await _stateStore.SetLastRunAsync(user.Id, new RunSummary { SkippedEmptyLibrary = true }, cancellationToken).ConfigureAwait(false);
                 return false;
             }
 
@@ -226,7 +226,7 @@ public sealed class SyncOrchestrator : IDisposable
 
             var activities = await _apiClient.FetchLastActivitiesAsync(accessToken, cancellationToken).ConfigureAwait(false);
 
-            var watchedSummary = "watched skipped";
+            var watchedSummary = new CategoryRunSummary { Skipped = true };
             if (config.WatchedEnabled)
             {
                 PushResult watchedPush;
@@ -253,55 +253,60 @@ public sealed class SyncOrchestrator : IDisposable
                         .ConfigureAwait(false);
                 }
 
-                watchedSummary = string.Format(
-                    CultureInfo.InvariantCulture,
-                    "watched push +{0}/-{1}{2} pull {3}{4} ({5})",
-                    watchedPush.PushedAdd,
-                    watchedPush.PushedRemove,
-                    watchedPush.SkippedRemove > 0 ? $" ({watchedPush.SkippedRemove} skipped)" : string.Empty,
-                    watchedPull.PulledApplied,
-                    watchedPull.SkippedRemove > 0 ? $" ({watchedPull.SkippedRemove} unwatch skipped)" : string.Empty,
-                    watchedPull.Mode);
+                watchedSummary = new CategoryRunSummary
+                {
+                    PushedAdd = watchedPush.PushedAdd,
+                    PushedRemove = watchedPush.PushedRemove,
+                    PushSkippedRemove = watchedPush.SkippedRemove,
+                    PulledApplied = watchedPull.PulledApplied,
+                    PullSkippedRemove = watchedPull.SkippedRemove,
+                    Mode = watchedPull.Mode,
+                };
             }
 
-            var ratingsSummary = "ratings skipped";
+            var ratingsSummary = new CategoryRunSummary { Skipped = true };
             if (config.RatingsEnabled)
             {
                 var ratingsPush = await _ratingsSync.PushAsync(user.Id, accessToken, snapshot, effectiveAllowRemovals, cancellationToken).ConfigureAwait(false);
                 var ratingsPull = await _ratingsSync.PullAsync(user.Id, accessToken, user, snapshot, activities.ServerTime, cancellationToken)
                     .ConfigureAwait(false);
-                ratingsSummary = string.Format(
-                    CultureInfo.InvariantCulture,
-                    "ratings push +{0}/-{1}{2} pull {3} ({4})",
-                    ratingsPush.PushedAdd,
-                    ratingsPush.PushedRemove,
-                    ratingsPush.SkippedRemove > 0 ? $" ({ratingsPush.SkippedRemove} skipped)" : string.Empty,
-                    ratingsPull.PulledApplied,
-                    ratingsPull.Mode);
+                ratingsSummary = new CategoryRunSummary
+                {
+                    PushedAdd = ratingsPush.PushedAdd,
+                    PushedRemove = ratingsPush.PushedRemove,
+                    PushSkippedRemove = ratingsPush.SkippedRemove,
+                    PulledApplied = ratingsPull.PulledApplied,
+                    Mode = ratingsPull.Mode,
+                };
             }
 
-            var collectionSummary = "collection skipped";
+            var collectionSummary = new CategoryRunSummary { Skipped = true };
             if (config.CollectionEnabled)
             {
                 var collectionPush = await _collectionSync.PushAsync(user.Id, accessToken, snapshot, effectiveAllowRemovals, config.CollectionMediaInfoEnabled, cancellationToken).ConfigureAwait(false);
-                collectionSummary = string.Format(
-                    CultureInfo.InvariantCulture,
-                    "collection push +{0}/-{1}{2}",
-                    collectionPush.PushedAdd,
-                    collectionPush.PushedRemove,
-                    collectionPush.SkippedRemove > 0 ? $" ({collectionPush.SkippedRemove} skipped)" : string.Empty);
+                collectionSummary = new CategoryRunSummary
+                {
+                    PushedAdd = collectionPush.PushedAdd,
+                    PushedRemove = collectionPush.PushedRemove,
+                    PushSkippedRemove = collectionPush.SkippedRemove,
+                };
             }
 
-            var summary = $"{watchedSummary}, {ratingsSummary}, {collectionSummary}";
-            _logger.Info("MDBList Sync: run complete - {0}", summary);
-            await _stateStore.SetLastRunSummaryAsync(user.Id, summary, cancellationToken).ConfigureAwait(false);
+            var summary = new RunSummary
+            {
+                Watched = watchedSummary,
+                Ratings = ratingsSummary,
+                Collection = collectionSummary,
+            };
+            _logger.Info("MDBList Sync: run complete - {0}", RunSummaryText.Format(summary, CultureInfo.InvariantCulture));
+            await _stateStore.SetLastRunAsync(user.Id, summary, cancellationToken).ConfigureAwait(false);
 
             return true;
         }
         catch (MDBListApiException ex)
         {
             _logger.ErrorException("MDBList Sync: run failed", ex);
-            await _stateStore.SetLastRunSummaryAsync(user.Id, $"run failed: {ex.Message}", cancellationToken).ConfigureAwait(false);
+            await _stateStore.SetLastRunAsync(user.Id, new RunSummary { FailedMessage = ex.Message }, cancellationToken).ConfigureAwait(false);
             return false;
         }
     }
@@ -424,7 +429,7 @@ public sealed class SyncOrchestrator : IDisposable
         }
 
         var snapshot = LibrarySnapshot.Build(_libraryManager, _userDataManager, user);
-        var summaries = new List<string>();
+        var summary = new RunSummary { IsActivityCheck = true };
 
         try
         {
@@ -436,19 +441,24 @@ public sealed class SyncOrchestrator : IDisposable
                 // never remove, only apply adds/updates.
                 var watchedPull = await _watchedSync.PullAsync(user.Id, accessToken, user, snapshot, activities.ServerTime, trusted: false, cancellationToken)
                     .ConfigureAwait(false);
-                summaries.Add(string.Format(
-                    CultureInfo.InvariantCulture,
-                    "watched pull {0}{1} ({2})",
-                    watchedPull.PulledApplied,
-                    watchedPull.SkippedRemove > 0 ? $" ({watchedPull.SkippedRemove} unwatch skipped)" : string.Empty,
-                    watchedPull.Mode));
+                summary.Watched = new CategoryRunSummary
+                {
+                    PulledApplied = watchedPull.PulledApplied,
+                    PullSkippedRemove = watchedPull.SkippedRemove,
+                    Mode = watchedPull.Mode,
+                };
             }
 
             if (ratingsChanged)
             {
                 var ratingsPull = await _ratingsSync.PullAsync(user.Id, accessToken, user, snapshot, activities.ServerTime, cancellationToken)
                     .ConfigureAwait(false);
-                summaries.Add(string.Format(CultureInfo.InvariantCulture, "ratings pull {0} ({1})", ratingsPull.PulledApplied, ratingsPull.Mode));
+                summary.Ratings = new CategoryRunSummary
+                {
+                    PulledApplied = ratingsPull.PulledApplied,
+                    PullSkippedRemove = ratingsPull.SkippedRemove,
+                    Mode = ratingsPull.Mode,
+                };
             }
         }
         catch (MDBListApiException ex)
@@ -457,9 +467,8 @@ public sealed class SyncOrchestrator : IDisposable
             return false;
         }
 
-        var summary = "activity check: " + string.Join(", ", summaries);
-        _logger.Info("MDBList Sync: {0}", summary);
-        await _stateStore.SetLastRunSummaryAsync(user.Id, summary, cancellationToken).ConfigureAwait(false);
+        _logger.Info("MDBList Sync: {0}", RunSummaryText.Format(summary, CultureInfo.InvariantCulture));
+        await _stateStore.SetLastRunAsync(user.Id, summary, cancellationToken).ConfigureAwait(false);
 
         // Only reached on success, so a failed pull above leaves the
         // watermark where it was.

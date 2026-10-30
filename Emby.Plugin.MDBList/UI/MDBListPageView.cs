@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -32,6 +33,7 @@ public class MDBListPageView : PluginPageView
     private readonly SyncOrchestrator _orchestrator;
     private readonly SyncStateStore _stateStore;
     private readonly ILogger _logger;
+    private readonly CultureInfo _uiCulture;
     private CancellationTokenSource? _connectCts;
 
     /// <summary>
@@ -58,6 +60,12 @@ public class MDBListPageView : PluginPageView
         _stateStore = stateStore;
         _logger = logManager.GetLogger("MDBList.UI");
 
+        // Captured here, on the request thread. Emby sets the UI culture for
+        // the incoming request, but the device-code poll and the other
+        // handlers below run on Task.Run threads, whose ambient
+        // CurrentUICulture is not guaranteed to be the client's.
+        _uiCulture = CultureInfo.CurrentUICulture;
+
         var users = _userManager.GetUserList(new UserQuery());
         var availableUsers = users
             .Select(u => new EditorSelectOption(
@@ -78,6 +86,17 @@ public class MDBListPageView : PluginPageView
     }
 
     private MDBListOptions Options => (ContentData as MDBListOptions)!;
+
+    /// <summary>
+    /// Resolves a UI string in the culture captured when this view was
+    /// constructed (see <see cref="_uiCulture"/>).
+    /// </summary>
+    private string T(string key) => Resources.ResourceManager.GetString(key, _uiCulture) ?? key;
+
+    /// <summary>
+    /// Resolves and formats a UI string in the captured culture.
+    /// </summary>
+    private string TF(string key, params object?[] args) => string.Format(_uiCulture, T(key), args);
 
     private Guid CurrentUserId => Guid.TryParse(Options.SelectedUserId, out var id) ? id : Guid.Empty;
 
@@ -162,7 +181,7 @@ public class MDBListPageView : PluginPageView
         var config = Plugin.Instance?.Configuration.Users.FirstOrDefault(u => u.EmbyUserId == userId);
         var connected = config is not null && !string.IsNullOrEmpty(config.AccessToken);
 
-        opts.ConnectionStatus.StatusText = connected ? "Connected to MDBList." : "Not connected.";
+        opts.ConnectionStatus.StatusText = connected ? T(nameof(Resources.Msg_Connected)) : T(nameof(Resources.Status_NotConnected));
         opts.ConnectionStatus.Status = connected ? ItemStatus.Succeeded : ItemStatus.Unavailable;
 
         opts.DeviceCode.IsVisible = false;
@@ -185,13 +204,13 @@ public class MDBListPageView : PluginPageView
 
         if (connected)
         {
-            var summary = await _stateStore.GetLastRunSummaryAsync(userId, CancellationToken.None).ConfigureAwait(false);
-            opts.LastRunStatus.StatusText = summary ?? "No sync has run yet.";
-            opts.LastRunStatus.Status = summary is null ? ItemStatus.Unavailable : ItemStatus.Succeeded;
+            var run = await _stateStore.GetLastRunAsync(userId, CancellationToken.None).ConfigureAwait(false);
+            opts.LastRunStatus.StatusText = RunSummaryText.Format(run, _uiCulture) ?? T(nameof(Resources.Status_NoSyncRun));
+            opts.LastRunStatus.Status = run is null ? ItemStatus.Unavailable : ItemStatus.Succeeded;
         }
         else
         {
-            opts.LastRunStatus.StatusText = "No sync has run yet.";
+            opts.LastRunStatus.StatusText = T(nameof(Resources.Status_NoSyncRun));
             opts.LastRunStatus.Status = ItemStatus.Unavailable;
         }
     }
@@ -206,7 +225,7 @@ public class MDBListPageView : PluginPageView
         try
         {
             Options.ConnectButton.IsEnabled = false;
-            SetConnectionStatus("Requesting device code...", ItemStatus.InProgress);
+            SetConnectionStatus(T(nameof(Resources.Msg_RequestingCode)), ItemStatus.InProgress);
 
             var deviceCode = await _oauthService.StartDeviceAuthorizationAsync(ct).ConfigureAwait(false);
 
@@ -217,7 +236,7 @@ public class MDBListPageView : PluginPageView
             opts.VerifyLink.HyperLink = deviceCode.VerificationUriComplete;
             opts.VerifyLink.IsVisible = true;
             SetConnectionStatus(
-                $"Enter code {deviceCode.UserCode} at {deviceCode.VerificationUri}, then wait for confirmation...",
+                TF(nameof(Resources.Msg_EnterCode), deviceCode.UserCode, deviceCode.VerificationUri),
                 ItemStatus.InProgress);
 
             var deadline = DateTime.UtcNow.AddSeconds(deviceCode.ExpiresIn);
@@ -240,7 +259,12 @@ public class MDBListPageView : PluginPageView
                         Options.DeviceCode.IsVisible = false;
                         Options.VerifyLink.IsVisible = false;
                         Options.ConnectButton.IsEnabled = true;
-                        SetConnectionStatus(poll.Message ?? "Authorization failed.", ItemStatus.Failed);
+
+                        // Localized by status rather than the service's own
+                        // Message, which is fixed English on the API DTO.
+                        SetConnectionStatus(
+                            T(poll.Status == "denied" ? nameof(Resources.Msg_AuthDenied) : nameof(Resources.Msg_AuthExpired)),
+                            ItemStatus.Failed);
                         return;
 
                     case "slow_down":
@@ -252,7 +276,7 @@ public class MDBListPageView : PluginPageView
             Options.DeviceCode.IsVisible = false;
             Options.VerifyLink.IsVisible = false;
             Options.ConnectButton.IsEnabled = true;
-            SetConnectionStatus("Authorization expired. Please try again.", ItemStatus.Failed);
+            SetConnectionStatus(T(nameof(Resources.Msg_AuthExpired)), ItemStatus.Failed);
         }
         catch (OperationCanceledException)
         {
@@ -261,13 +285,13 @@ public class MDBListPageView : PluginPageView
         catch (MDBListApiException ex)
         {
             Options.ConnectButton.IsEnabled = true;
-            SetConnectionStatus($"Connection failed: {ex.Message}", ItemStatus.Failed);
+            SetConnectionStatus(TF(nameof(Resources.Msg_ConnectionFailed), ex.Message), ItemStatus.Failed);
         }
         catch (Exception ex)
         {
             _logger.ErrorException("MDBList UI: device authorization flow failed", ex);
             Options.ConnectButton.IsEnabled = true;
-            SetConnectionStatus($"Connection failed: {ex.Message}", ItemStatus.Failed);
+            SetConnectionStatus(TF(nameof(Resources.Msg_ConnectionFailed), ex.Message), ItemStatus.Failed);
         }
         finally
         {
@@ -281,7 +305,7 @@ public class MDBListPageView : PluginPageView
     private async Task HandleDisconnectAsync(Guid userId)
     {
         _connectCts?.Cancel();
-        SetConnectionStatus("Disconnecting...", ItemStatus.InProgress);
+        SetConnectionStatus(T(nameof(Resources.Msg_Disconnecting)), ItemStatus.InProgress);
 
         try
         {
@@ -298,22 +322,22 @@ public class MDBListPageView : PluginPageView
 
     private async Task HandleTestAsync(Guid userId)
     {
-        SetConnectionStatus("Testing connection...", ItemStatus.InProgress);
+        SetConnectionStatus(T(nameof(Resources.Msg_Testing)), ItemStatus.InProgress);
 
         try
         {
             var serverTime = await _oauthService.TestConnectionAsync(userId, CancellationToken.None).ConfigureAwait(false);
-            SetConnectionStatus($"Connected. MDBList server time: {serverTime}", ItemStatus.Succeeded);
+            SetConnectionStatus(TF(nameof(Resources.Msg_TestOk), serverTime), ItemStatus.Succeeded);
         }
         catch (MDBListApiException ex)
         {
-            SetConnectionStatus($"Connection test failed: {ex.Message}", ItemStatus.Failed);
+            SetConnectionStatus(TF(nameof(Resources.Msg_TestFailed), ex.Message), ItemStatus.Failed);
         }
     }
 
     private async Task HandleSyncNowAsync(Guid userId)
     {
-        SetLastRunStatus("Syncing...", ItemStatus.InProgress);
+        SetLastRunStatus(T(nameof(Resources.Msg_Syncing)), ItemStatus.InProgress);
 
         try
         {
@@ -326,8 +350,10 @@ public class MDBListPageView : PluginPageView
             _logger.ErrorException("MDBList UI: manual sync failed", ex);
         }
 
-        var summary = await _stateStore.GetLastRunSummaryAsync(userId, CancellationToken.None).ConfigureAwait(false);
-        SetLastRunStatus(summary ?? "No sync has run yet.", summary is null ? ItemStatus.Unavailable : ItemStatus.Succeeded);
+        var run = await _stateStore.GetLastRunAsync(userId, CancellationToken.None).ConfigureAwait(false);
+        SetLastRunStatus(
+            RunSummaryText.Format(run, _uiCulture) ?? T(nameof(Resources.Status_NoSyncRun)),
+            run is null ? ItemStatus.Unavailable : ItemStatus.Succeeded);
     }
 
     private void SetConnectionStatus(string text, ItemStatus status)

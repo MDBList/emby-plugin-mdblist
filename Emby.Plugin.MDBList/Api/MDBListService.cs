@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using Emby.Plugin.MDBList.Api.Models;
@@ -108,11 +109,15 @@ public class MDBListService : IService
     private SyncStatusResult BuildStatus(Guid userId)
     {
         var linkedUserConfig = Plugin.Instance?.Configuration.Users.FirstOrDefault(u => u.EmbyUserId == userId);
-        var summary = _stateStore.GetLastRunSummaryAsync(userId, CancellationToken.None).GetAwaiter().GetResult();
+        var run = _stateStore.GetLastRunAsync(userId, CancellationToken.None).GetAwaiter().GetResult();
         return new SyncStatusResult
         {
             Connected = !string.IsNullOrEmpty(linkedUserConfig?.AccessToken),
-            LastRunSummary = summary,
+
+            // Rendered on this request thread, which Emby has already set to
+            // the caller's UI culture -- the stored summary itself is
+            // language-neutral data.
+            LastRunSummary = RunSummaryText.Format(run, CultureInfo.CurrentUICulture),
         };
     }
 }
