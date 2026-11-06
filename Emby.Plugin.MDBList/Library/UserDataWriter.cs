@@ -30,10 +30,12 @@ internal static class UserDataWriter
             userDataManager.SaveUserData(user, item, userData, UserDataSaveReason.Import, CancellationToken.None);
             return true;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not ObjectDisposedException)
         {
             // Emby's server is closed source, so which exceptions a save can
-            // throw isn't known: any of them skips just this item
+            // throw isn't known: any of them skips just this item. Not
+            // ObjectDisposedException: that's Emby shutting down, which should
+            // end the sync, not log every remaining item as unsaveable.
             logger.ErrorException(
                 "MDBList Sync: Emby couldn't save user data for {0} ({1}, user data key {2}), skipped",
                 ex,
