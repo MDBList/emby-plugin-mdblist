@@ -582,9 +582,15 @@ public class WatchedSync
         // Record what this change makes MDBList and Emby agree on, for the
         // known-items state: without it the next push diffs a pulled watch as a
         // new local one and pushes it back -- undoing a later remote unwatch.
+        // A save Emby refused (logged) leaves both sides as they were: not
+        // recorded as synced, so nothing is pushed back and the next pull retries.
         if (removed)
         {
-            SetWatched(user, record.ItemId, played: false, playCount: 0, lastPlayedDate: null);
+            if (!SetWatched(user, record.ItemId, played: false, playCount: 0, lastPlayedDate: null).Saved)
+            {
+                return false;
+            }
+
             changes.Current[record.ItemId] = (0, localTs);
             if (key is not null)
             {
@@ -606,7 +612,12 @@ public class WatchedSync
         }
         else
         {
-            var savedLastPlayed = SetWatched(user, record.ItemId, played: true, playCount: Math.Max(localPlayCount, 1), lastPlayedDate: remoteTs ?? localTs);
+            var (saved, savedLastPlayed) = SetWatched(user, record.ItemId, played: true, playCount: Math.Max(localPlayCount, 1), lastPlayedDate: remoteTs ?? localTs);
+            if (!saved)
+            {
+                return false;
+            }
+
             changes.Current[record.ItemId] = (Math.Max(localPlayCount, 1), savedLastPlayed);
             if (key is not null)
             {
@@ -663,13 +674,13 @@ public class WatchedSync
         return !(localPlayCount > 0 && localTs.HasValue && remoteTs.HasValue && localTs > remoteTs);
     }
 
-    /// <returns>The item's LastPlayedDate as Emby stored it, read back after saving.</returns>
-    private DateTimeOffset? SetWatched(User user, Guid itemId, bool played, int playCount, DateTimeOffset? lastPlayedDate)
+    /// <returns>Whether it saved (a missing item counts as saved, as before), and the item's LastPlayedDate as Emby stored it, read back after saving.</returns>
+    private (bool Saved, DateTimeOffset? LastPlayedDate) SetWatched(User user, Guid itemId, bool played, int playCount, DateTimeOffset? lastPlayedDate)
     {
         var item = _libraryManager.GetItemById(itemId);
         if (item is null)
         {
-            return lastPlayedDate;
+            return (true, lastPlayedDate);
         }
 
         var userData = _userDataManager.GetUserData(user, item) ?? new UserItemData { Key = item.UserDataKey };
@@ -684,8 +695,12 @@ public class WatchedSync
             userData.LastPlayedDate = lastPlayedDate;
         }
 
-        _userDataManager.SaveUserData(user, item, userData, UserDataSaveReason.Import, CancellationToken.None);
-        return _userDataManager.GetUserData(user, item)?.LastPlayedDate ?? userData.LastPlayedDate;
+        if (!UserDataWriter.TrySave(_userDataManager, _logger, user, item, userData))
+        {
+            return (false, lastPlayedDate);
+        }
+
+        return (true, _userDataManager.GetUserData(user, item)?.LastPlayedDate ?? userData.LastPlayedDate);
     }
 
     private async Task PersistPulledStateAsync(Guid userId, PulledStateChanges changes, CancellationToken cancellationToken)
