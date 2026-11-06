@@ -27,6 +27,12 @@ the current progress every 15 minutes while playing.
 A movie or episode played to the end is marked watched on MDBList at the
 time playback finished, not when it started.
 
+## Sync
+
+An item Emby can't save watched status or a rating for is skipped with an
+error in the log naming the item, and the rest of the sync carries on;
+it's retried on the next sync.
+
 ## Languages
 
 The settings page is in English and Simplified Chinese, following Emby's
