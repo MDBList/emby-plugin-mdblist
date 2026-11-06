@@ -80,18 +80,28 @@ public sealed class PlaybackScrobbleService
     /// <param name="e">The event args.</param>
     public void HandlePlaybackStart(PlaybackProgressEventArgs e)
     {
+        if (!IsScrobblable(e.Item))
+        {
+            return;
+        }
+
         var key = SessionKey(e);
         if (key is null)
         {
             return;
         }
 
+        // Clients starting from the beginning report no position: that's 0.
+        // Left null, no progress could be computed, the start wasn't sent, and
+        // the throttle then held every push back for MinProgressInterval.
+        var positionTicks = e.PlaybackPositionTicks ?? 0;
+
         // Recorded synchronously, before the send below even runs: an
         // automated progress tick can arrive very soon after, and it must
         // see "just sent" immediately, not race the async send.
-        var state = new SessionState { LastSentAt = DateTime.UtcNow, LastSentPositionTicks = e.PlaybackPositionTicks };
+        var state = new SessionState { LastSentAt = DateTime.UtcNow, LastSentPositionTicks = positionTicks };
         _sessions[key] = state;
-        Dispatch(e, StartEndpoint, playedToCompletion: false, state);
+        Dispatch(e, StartEndpoint, playedToCompletion: false, state, positionTicks: positionTicks);
     }
 
     /// <summary>
@@ -101,6 +111,11 @@ public sealed class PlaybackScrobbleService
     /// <param name="e">The event args.</param>
     public void HandlePlaybackProgress(PlaybackProgressEventArgs e)
     {
+        if (!IsScrobblable(e.Item))
+        {
+            return;
+        }
+
         var key = SessionKey(e);
         if (key is null)
         {
@@ -150,6 +165,13 @@ public sealed class PlaybackScrobbleService
     /// <param name="e">The event args.</param>
     public void HandlePlaybackStopped(PlaybackStopEventArgs e)
     {
+        // Also keeps a pre-roll's stop, which can arrive after the feature has
+        // started on the same session, from dropping the feature's state
+        if (!IsScrobblable(e.Item))
+        {
+            return;
+        }
+
         var key = SessionKey(e);
         if (key is not null)
         {
@@ -164,12 +186,25 @@ public sealed class PlaybackScrobbleService
         return e.PlaySessionId ?? e.Session?.Id;
     }
 
-    private void Dispatch(PlaybackProgressEventArgs e, string endpoint, bool playedToCompletion, SessionState? state = null, bool periodic = false)
+    // positionTicks: the position to send, when not the event's own
+    private void Dispatch(PlaybackProgressEventArgs e, string endpoint, bool playedToCompletion, SessionState? state = null, bool periodic = false, long? positionTicks = null)
     {
-        _ = Task.Run(() => SendAsync(e, endpoint, playedToCompletion, state, periodic));
+        _ = Task.Run(async () =>
+        {
+            // Fire and forget: anything thrown here would otherwise be lost
+            // without a trace (API errors are already handled per user below)
+            try
+            {
+                await SendAsync(e, endpoint, playedToCompletion, state, periodic, positionTicks ?? e.PlaybackPositionTicks).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.ErrorException("MDBList scrobble {0} for {1} failed", ex, endpoint, e.Item?.Name);
+            }
+        });
     }
 
-    private async Task SendAsync(PlaybackProgressEventArgs e, string endpoint, bool playedToCompletion, SessionState? state, bool periodic)
+    private async Task SendAsync(PlaybackProgressEventArgs e, string endpoint, bool playedToCompletion, SessionState? state, bool periodic, long? positionTicks)
     {
         var userIds = ResolveScrobblingLinkedUserIds(e.Users);
         if (periodic)
@@ -183,7 +218,7 @@ public sealed class PlaybackScrobbleService
             return;
         }
 
-        var request = BuildScrobbleRequest(e.Item, e.PlaybackPositionTicks, playedToCompletion);
+        var request = BuildScrobbleRequest(e.Item, positionTicks, playedToCompletion);
         if (request is null)
         {
             return;
@@ -194,11 +229,11 @@ public sealed class PlaybackScrobbleService
         // actually on this session, not just the first one found overall.
         foreach (var userId in userIds)
         {
-            await SendForUserAsync(userId, endpoint, request, state).ConfigureAwait(false);
+            await SendForUserAsync(userId, endpoint, request, state, e.Item?.Name).ConfigureAwait(false);
         }
     }
 
-    private async Task SendForUserAsync(Guid userId, string endpoint, ScrobbleRequest request, SessionState? state)
+    private async Task SendForUserAsync(Guid userId, string endpoint, ScrobbleRequest request, SessionState? state, string? itemName)
     {
         try
         {
@@ -212,6 +247,7 @@ public sealed class PlaybackScrobbleService
             // marks the title watched); a start/pause would land stale, and
             // possibly after a later stop
             await _apiClient.PushSyncItemsAsync(accessToken, endpoint, request, CancellationToken.None, retryRateLimit: endpoint == StopEndpoint).ConfigureAwait(false);
+            _logger.Debug("MDBList scrobble {0} for {1} at {2}% sent for user {3}", endpoint, itemName, request.Progress, userId);
         }
         catch (MDBListApiException ex)
         {
@@ -224,7 +260,22 @@ public sealed class PlaybackScrobbleService
                 state.TitleUnknown = true;
             }
 
-            _logger.Debug("MDBList scrobble push to {0} failed for user {1}: {2}", endpoint, userId, ex.Message);
+            // A 429 or a title MDBList doesn't know is expected and handled
+            // here; anything else is a real failure, worth a warning
+            if (ex.IsRateLimited || ex.StatusCode == HttpStatusCode.NotFound)
+            {
+                _logger.Debug("MDBList scrobble {0} for {1} failed for user {2}: {3}", endpoint, itemName, userId, ex.Message);
+            }
+            else
+            {
+                _logger.Warn("MDBList scrobble {0} for {1} failed for user {2}: {3}", endpoint, itemName, userId, ex.Message);
+            }
+        }
+        catch (Exception ex) when (ex is not MDBListApiException)
+        {
+            // E.g. an HttpClient timeout or a failed token refresh: caught per
+            // user so the session's other users still get this scrobble
+            _logger.Warn("MDBList scrobble {0} for {1} failed for user {2}: {3}", endpoint, itemName, userId, ex.Message);
         }
     }
 
@@ -335,6 +386,19 @@ public sealed class PlaybackScrobbleService
 
         var expected = lastPositionTicks.Value + (now - lastSentAt).Ticks;
         return Math.Abs(positionTicks.Value - expected) > SeekTolerance.Ticks;
+    }
+
+    /// <summary>
+    /// Whether a playback is one MDBList can scrobble: a movie or episode,
+    /// not an extra (trailer, clip, ...) or a pre-roll (cinema mode intros
+    /// play as plain videos or trailers). Others are ignored before they
+    /// touch session state.
+    /// </summary>
+    /// <param name="item">The item being played.</param>
+    /// <returns>True for a movie or episode that isn't an extra.</returns>
+    internal static bool IsScrobblable(BaseItem? item)
+    {
+        return item is Movie or Episode && item.ExtraType is null;
     }
 
     internal static double? ComputeProgress(long? runTimeTicks, long? positionTicks)
