@@ -33,6 +33,9 @@ public sealed class SyncOrchestrator : IDisposable
     private static readonly string[] RatingActivityKeys = ["rated_at"];
     private static readonly SyncCategory[] AllCategories = [SyncCategory.Watched, SyncCategory.Ratings, SyncCategory.Collection];
 
+    // How long the scheduled full sync waits for another run to finish.
+    private static readonly TimeSpan ScheduledRunLockWait = TimeSpan.FromMinutes(30);
+
     // Static: Emby gives the scheduled tasks, the API service, the config
     // page and the event handlers their own instances of this class, and an
     // instance gate let a full sync, an activity check and a live push run
@@ -167,15 +170,17 @@ public sealed class SyncOrchestrator : IDisposable
     /// </returns>
     public async Task<SyncRunOutcome> RunAllLinkedUsersAsync(bool allowRemovals, CancellationToken cancellationToken)
     {
-        using var handle = TryLock();
-        if (handle is null)
+        // Wait rather than skip: with one gate for every instance, a short
+        // activity check or live push holding it would otherwise make the
+        // daily reconciliation silently skip a whole day.
+        if (!await _gate.WaitAsync(ScheduledRunLockWait, cancellationToken).ConfigureAwait(false))
         {
-            _logger.Debug("MDBList Sync: run already in progress, skipping");
+            _logger.Info("MDBList Sync: another sync is still running after {0} minutes, skipping this run", ScheduledRunLockWait.TotalMinutes);
             return SyncRunOutcome.Skipped;
         }
 
-        var anyRan = false;
-        var anyFailed = false;
+        using var handle = new Releaser(_gate);
+        var result = SyncRunOutcome.Skipped;
         foreach (var config in LinkedUserConfigs())
         {
             var user = _userManager.GetUserById(config.EmbyUserId);
@@ -184,12 +189,27 @@ public sealed class SyncOrchestrator : IDisposable
                 continue;
             }
 
-            var outcome = await RunForUserAsync(user, config, allowRemovals, cancellationToken).ConfigureAwait(false);
-            anyRan |= outcome == SyncRunOutcome.Completed;
-            anyFailed |= outcome == SyncRunOutcome.Failed;
+            SyncRunOutcome outcome;
+            try
+            {
+                outcome = await RunForUserAsync(user, config, allowRemovals, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Not an API error (those are handled inside), e.g. the state
+                // file can't be written -- still let the other users sync.
+                _logger.ErrorException("MDBList Sync: run failed for user {0}", ex, user.Name);
+                outcome = SyncRunOutcome.Failed;
+            }
+
+            // Ordered Skipped < Completed < Failed: the worst outcome wins.
+            if (outcome > result)
+            {
+                result = outcome;
+            }
         }
 
-        return anyFailed ? SyncRunOutcome.Failed : anyRan ? SyncRunOutcome.Completed : SyncRunOutcome.Skipped;
+        return result;
     }
 
     private async Task<SyncRunOutcome> RunForUserAsync(User user, UserSyncConfig config, bool allowRemovals, CancellationToken cancellationToken)
