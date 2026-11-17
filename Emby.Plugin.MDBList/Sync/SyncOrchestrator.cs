@@ -33,7 +33,14 @@ public sealed class SyncOrchestrator : IDisposable
     private static readonly string[] RatingActivityKeys = ["rated_at"];
     private static readonly SyncCategory[] AllCategories = [SyncCategory.Watched, SyncCategory.Ratings, SyncCategory.Collection];
 
-    private readonly SemaphoreSlim _gate = new(1, 1);
+    // Static: Emby gives the scheduled tasks, the API service, the config
+    // page and the event handlers their own instances of this class, and an
+    // instance gate let a full sync, an activity check and a live push run
+    // at once -- colliding on the state file and letting one run push a
+    // removal from a snapshot another had already made stale (GitHub issue
+    // #7). One gate per process serializes them all. Never disposed.
+    private static readonly SemaphoreSlim _gate = new(1, 1);
+
     private readonly IUserManager _userManager;
     private readonly ILibraryManager _libraryManager;
     private readonly IUserDataManager _userDataManager;
@@ -479,7 +486,7 @@ public sealed class SyncOrchestrator : IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        _gate.Dispose();
+        // Nothing to release: the gate is static and shared by every instance.
     }
 
     private (User User, UserSyncConfig Config)? ResolveLinkedUser(Guid userId)
