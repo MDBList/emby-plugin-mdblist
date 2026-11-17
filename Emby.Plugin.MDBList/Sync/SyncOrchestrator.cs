@@ -135,20 +135,20 @@ public sealed class SyncOrchestrator : IDisposable
     /// removal_safety_pattern.md.
     /// </param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>True if a run actually executed.</returns>
-    public async Task<bool> RunAsync(Guid userId, bool allowRemovals, CancellationToken cancellationToken)
+    /// <returns>How the run ended.</returns>
+    public async Task<SyncRunOutcome> RunAsync(Guid userId, bool allowRemovals, CancellationToken cancellationToken)
     {
         using var handle = TryLock();
         if (handle is null)
         {
             _logger.Debug("MDBList Sync: run already in progress, skipping");
-            return false;
+            return SyncRunOutcome.Skipped;
         }
 
         var linked = ResolveLinkedUser(userId);
         if (linked is null)
         {
-            return false;
+            return SyncRunOutcome.Skipped;
         }
 
         return await RunForUserAsync(linked.Value.User, linked.Value.Config, allowRemovals, cancellationToken).ConfigureAwait(false);
@@ -161,17 +161,21 @@ public sealed class SyncOrchestrator : IDisposable
     /// </summary>
     /// <param name="allowRemovals">See <see cref="RunAsync"/>.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>True if at least one user's run actually executed.</returns>
-    public async Task<bool> RunAllLinkedUsersAsync(bool allowRemovals, CancellationToken cancellationToken)
+    /// <returns>
+    /// Failed if any user's run failed (the others still run), else
+    /// Completed if any ran, else Skipped.
+    /// </returns>
+    public async Task<SyncRunOutcome> RunAllLinkedUsersAsync(bool allowRemovals, CancellationToken cancellationToken)
     {
         using var handle = TryLock();
         if (handle is null)
         {
             _logger.Debug("MDBList Sync: run already in progress, skipping");
-            return false;
+            return SyncRunOutcome.Skipped;
         }
 
         var anyRan = false;
+        var anyFailed = false;
         foreach (var config in LinkedUserConfigs())
         {
             var user = _userManager.GetUserById(config.EmbyUserId);
@@ -180,18 +184,20 @@ public sealed class SyncOrchestrator : IDisposable
                 continue;
             }
 
-            anyRan |= await RunForUserAsync(user, config, allowRemovals, cancellationToken).ConfigureAwait(false);
+            var outcome = await RunForUserAsync(user, config, allowRemovals, cancellationToken).ConfigureAwait(false);
+            anyRan |= outcome == SyncRunOutcome.Completed;
+            anyFailed |= outcome == SyncRunOutcome.Failed;
         }
 
-        return anyRan;
+        return anyFailed ? SyncRunOutcome.Failed : anyRan ? SyncRunOutcome.Completed : SyncRunOutcome.Skipped;
     }
 
-    private async Task<bool> RunForUserAsync(User user, UserSyncConfig config, bool allowRemovals, CancellationToken cancellationToken)
+    private async Task<SyncRunOutcome> RunForUserAsync(User user, UserSyncConfig config, bool allowRemovals, CancellationToken cancellationToken)
     {
         var accessToken = await _oauthService.EnsureValidTokenAsync(user.Id, cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrEmpty(accessToken))
         {
-            return false;
+            return SyncRunOutcome.Skipped;
         }
 
         try
@@ -217,7 +223,7 @@ public sealed class SyncOrchestrator : IDisposable
                     "MDBList Sync: run aborted - library snapshot is empty but remote state is not; "
                         + "treating as an unreliable read rather than a real removal");
                 await _stateStore.SetLastRunAsync(user.Id, new RunSummary { SkippedEmptyLibrary = true }, cancellationToken).ConfigureAwait(false);
-                return false;
+                return SyncRunOutcome.Skipped;
             }
 
             // A library scan mid-flight can make a query legitimately,
@@ -308,13 +314,13 @@ public sealed class SyncOrchestrator : IDisposable
             _logger.Info("MDBList Sync: run complete - {0}", RunSummaryText.Format(summary, CultureInfo.InvariantCulture));
             await _stateStore.SetLastRunAsync(user.Id, summary, cancellationToken).ConfigureAwait(false);
 
-            return true;
+            return SyncRunOutcome.Completed;
         }
         catch (MDBListApiException ex)
         {
             _logger.ErrorException("MDBList Sync: run failed", ex);
             await _stateStore.SetLastRunAsync(user.Id, new RunSummary { FailedMessage = ex.Message }, cancellationToken).ConfigureAwait(false);
-            return false;
+            return SyncRunOutcome.Failed;
         }
     }
 

@@ -57,7 +57,14 @@ public class MDBListSyncTask : IScheduledTask
         // allowRemovals: true -- the deliberate 24h reconciliation backstop,
         // trusted to actually remove things from MDBList (still subject to
         // SyncPayloadBuilder's magnitude circuit-breaker).
-        await _orchestrator.RunAllLinkedUsersAsync(allowRemovals: true, cancellationToken).ConfigureAwait(false);
+        var outcome = await _orchestrator.RunAllLinkedUsersAsync(allowRemovals: true, cancellationToken).ConfigureAwait(false);
         progress.Report(100);
+
+        // Emby marks a task Failed only when Execute throws -- without this a
+        // run stopped by an API error (e.g. the daily quota) showed Completed.
+        if (outcome == SyncRunOutcome.Failed)
+        {
+            throw new InvalidOperationException("MDBList sync failed for at least one user; see the MDBList.Sync log entries for the error.");
+        }
     }
 }
