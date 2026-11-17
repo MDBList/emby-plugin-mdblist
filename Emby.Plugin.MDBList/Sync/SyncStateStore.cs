@@ -30,6 +30,12 @@ namespace Emby.Plugin.MDBList.Sync;
 /// GitHub issue #1). So every read/mutate below goes straight to disk,
 /// which is the only state genuinely shared across instances. Still
 /// written atomically (temp file + move) for crash safety.
+///
+/// For the same reason the lock is static: an instance lock let the
+/// scheduled tasks' separate instances read-modify-write the file at the
+/// same time, losing each other's changes and colliding on the temp file
+/// (an IOException on Windows -- GitHub issue #7). The plugin assembly is
+/// loaded once per Emby process, so a static lock covers every instance.
 /// </summary>
 public sealed class SyncStateStore : IDisposable
 {
@@ -48,16 +54,34 @@ public sealed class SyncStateStore : IDisposable
         PreferredObjectCreationHandling = JsonObjectCreationHandling.Populate,
     };
 
+    // Shared by every instance, never disposed -- see the class remarks.
+    private static readonly SemaphoreSlim _lock = new(1, 1);
+
     private readonly string _filePath;
-    private readonly SemaphoreSlim _lock = new(1, 1);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SyncStateStore"/> class.
     /// </summary>
     /// <param name="applicationPaths">Instance of the <see cref="IApplicationPaths"/> interface.</param>
     public SyncStateStore(IApplicationPaths applicationPaths)
+        : this(Path.Combine(applicationPaths.PluginConfigurationsPath, "MDBList", FileName))
     {
-        _filePath = Path.Combine(applicationPaths.PluginConfigurationsPath, "MDBList", FileName);
+    }
+
+    private SyncStateStore(string filePath)
+    {
+        _filePath = filePath;
+    }
+
+    /// <summary>
+    /// Creates a store over an explicit file -- for tests, which don't
+    /// reference the Emby SDK that <see cref="IApplicationPaths"/> lives in.
+    /// </summary>
+    /// <param name="filePath">The state file's path.</param>
+    /// <returns>The store.</returns>
+    internal static SyncStateStore ForFile(string filePath)
+    {
+        return new SyncStateStore(filePath);
     }
 
     /// <summary>
@@ -368,18 +392,40 @@ public sealed class SyncStateStore : IDisposable
             Directory.CreateDirectory(directory);
         }
 
-        var tempPath = _filePath + ".tmp";
-        using (var stream = File.Create(tempPath))
+        // A unique name per write, so a leftover temp file from a crashed
+        // write -- or a write the lock doesn't cover -- can never block this one.
+        var tempPath = _filePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
         {
-            await JsonSerializer.SerializeAsync(stream, file, SerializerOptions, cancellationToken).ConfigureAwait(false);
-        }
+            using (var stream = File.Create(tempPath))
+            {
+                await JsonSerializer.SerializeAsync(stream, file, SerializerOptions, cancellationToken).ConfigureAwait(false);
+            }
 
-        File.Move(tempPath, _filePath, overwrite: true);
+            File.Move(tempPath, _filePath, overwrite: true);
+        }
+        catch
+        {
+            TryDelete(tempPath);
+            throw;
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Best effort: a stray temp file is harmless.
+        }
     }
 
     /// <inheritdoc />
     public void Dispose()
     {
-        _lock.Dispose();
+        // Nothing to release: the lock is static and shared by every instance.
     }
 }
