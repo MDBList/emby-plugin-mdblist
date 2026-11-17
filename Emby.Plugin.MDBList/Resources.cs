@@ -113,6 +113,8 @@ public class Resources
 
     public static string Msg_Syncing => Get(nameof(Msg_Syncing));
 
+    public static string Msg_SyncBusy => Get(nameof(Msg_SyncBusy));
+
     public static string Task_Sync_Name => Get(nameof(Task_Sync_Name));
 
     public static string Task_Sync_Desc => Get(nameof(Task_Sync_Desc));

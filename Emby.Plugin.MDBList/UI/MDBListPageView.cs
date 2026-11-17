@@ -339,21 +339,31 @@ public class MDBListPageView : PluginPageView
     {
         SetLastRunStatus(T(nameof(Resources.Msg_Syncing)), ItemStatus.InProgress);
 
+        SyncRunOutcome outcome;
         try
         {
             // allowRemovals: true -- explicit user intent, foreground, user
             // is watching -- same trust level as the 24h timer.
-            await _orchestrator.RunAsync(userId, allowRemovals: true, CancellationToken.None).ConfigureAwait(false);
+            outcome = await _orchestrator.RunAsync(userId, allowRemovals: true, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             _logger.ErrorException("MDBList UI: manual sync failed", ex);
+            SetLastRunStatus(TF(nameof(Resources.Summary_Failed), ex.Message), ItemStatus.Failed);
+            return;
+        }
+
+        if (outcome == SyncRunOutcome.Busy)
+        {
+            SetLastRunStatus(T(nameof(Resources.Msg_SyncBusy)), ItemStatus.Unavailable);
+            return;
         }
 
         var run = await _stateStore.GetLastRunAsync(userId, CancellationToken.None).ConfigureAwait(false);
-        SetLastRunStatus(
-            RunSummaryText.Format(run, _uiCulture) ?? T(nameof(Resources.Status_NoSyncRun)),
-            run is null ? ItemStatus.Unavailable : ItemStatus.Succeeded);
+        var status = run is null ? ItemStatus.Unavailable
+            : outcome == SyncRunOutcome.Failed ? ItemStatus.Failed
+            : ItemStatus.Succeeded;
+        SetLastRunStatus(RunSummaryText.Format(run, _uiCulture) ?? T(nameof(Resources.Status_NoSyncRun)), status);
     }
 
     private void SetConnectionStatus(string text, ItemStatus status)

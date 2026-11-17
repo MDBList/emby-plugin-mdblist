@@ -145,7 +145,7 @@ public sealed class SyncOrchestrator : IDisposable
         if (handle is null)
         {
             _logger.Debug("MDBList Sync: run already in progress, skipping");
-            return SyncRunOutcome.Skipped;
+            return SyncRunOutcome.Busy;
         }
 
         var linked = ResolveLinkedUser(userId);
@@ -176,7 +176,7 @@ public sealed class SyncOrchestrator : IDisposable
         if (!await _gate.WaitAsync(ScheduledRunLockWait, cancellationToken).ConfigureAwait(false))
         {
             _logger.Info("MDBList Sync: another sync is still running after {0} minutes, skipping this run", ScheduledRunLockWait.TotalMinutes);
-            return SyncRunOutcome.Skipped;
+            return SyncRunOutcome.Busy;
         }
 
         using var handle = new Releaser(_gate);

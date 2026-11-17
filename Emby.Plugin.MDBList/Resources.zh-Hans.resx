@@ -129,6 +129,9 @@
   <data name="Msg_Syncing" xml:space="preserve">
     <value>正在同步……</value>
   </data>
+  <data name="Msg_SyncBusy" xml:space="preserve">
+    <value>已有同步正在运行，请在其完成后重试。</value>
+  </data>
   <data name="Task_Sync_Name" xml:space="preserve">
     <value>MDBList 同步</value>
   </data>

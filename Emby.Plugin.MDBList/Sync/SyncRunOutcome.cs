@@ -2,14 +2,21 @@ namespace Emby.Plugin.MDBList.Sync;
 
 /// <summary>
 /// How a full sync run ended -- kept apart so a failure (e.g. MDBList's
-/// daily quota) isn't reported like a run that had nothing to do. Ordered
-/// from best to worst, so combining several runs keeps the highest.
+/// daily quota) isn't reported like a run that had nothing to do. Skipped,
+/// Completed and Failed are ordered from best to worst, so combining several
+/// users' runs keeps the highest.
 /// </summary>
 public enum SyncRunOutcome
 {
     /// <summary>
-    /// Nothing ran: another run held the lock, the user isn't linked or has
-    /// no valid token, or the empty-library guard stopped it.
+    /// Nothing ran because another sync held the lock. Never combined with
+    /// the per-user outcomes below.
+    /// </summary>
+    Busy,
+
+    /// <summary>
+    /// Nothing ran: the user isn't linked or has no valid token, or the
+    /// empty-library guard stopped it.
     /// </summary>
     Skipped,
 
