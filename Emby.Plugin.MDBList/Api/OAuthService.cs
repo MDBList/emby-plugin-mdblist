@@ -31,7 +31,15 @@ public class OAuthService : IDisposable
     // Serializes every read-modify-write of PluginConfiguration.Users -- the
     // dashboard's own "Save" button does a full config replace, so token
     // writes from the auth flow and refreshes must not race it or each other.
-    private readonly SemaphoreSlim _configLock = new(1, 1);
+    // Static, like SyncStateStore's lock: Emby builds a separate instance of
+    // this class for each task and service (GitHub issue #7). Never disposed.
+    private static readonly SemaphoreSlim _configLock = new(1, 1);
+
+    // One token refresh at a time across every instance. The refresh token
+    // may be single-use, so two callers refreshing at once (a live push and
+    // the scheduled sync) would leave one of them with a rejected token.
+    // Separate from _configLock, which SaveTokensAsync takes inside it.
+    private static readonly SemaphoreSlim _refreshLock = new(1, 1);
 
     private readonly IHttpClient _httpClient;
     private readonly MDBListApiClient _apiClient;
@@ -167,17 +175,35 @@ public class OAuthService : IDisposable
             return string.Empty;
         }
 
-        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        if (config.ExpiresAt != 0 && now > config.ExpiresAt - 300)
+        if (IsNearExpiry(config))
         {
-            var refreshed = await TryRefreshAsync(embyUserId, config.RefreshToken, cancellationToken).ConfigureAwait(false);
-            if (refreshed)
+            await _refreshLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
             {
+                // Another caller may have refreshed while this one waited:
+                // re-read, and only spend the refresh token if still needed.
                 config = FindUserConfig(embyUserId);
+                if (config is not null && IsNearExpiry(config))
+                {
+                    var refreshed = await TryRefreshAsync(embyUserId, config.RefreshToken, cancellationToken).ConfigureAwait(false);
+                    if (refreshed)
+                    {
+                        config = FindUserConfig(embyUserId);
+                    }
+                }
+            }
+            finally
+            {
+                _refreshLock.Release();
             }
         }
 
         return config?.AccessToken ?? string.Empty;
+    }
+
+    private static bool IsNearExpiry(UserSyncConfig config)
+    {
+        return config.ExpiresAt != 0 && DateTimeOffset.UtcNow.ToUnixTimeSeconds() > config.ExpiresAt - 300;
     }
 
     /// <summary>
@@ -346,9 +372,6 @@ public class OAuthService : IDisposable
     /// <param name="disposing">Whether managed resources should be released.</param>
     protected virtual void Dispose(bool disposing)
     {
-        if (disposing)
-        {
-            _configLock.Dispose();
-        }
+        // Nothing to release: the locks are static and shared by every instance.
     }
 }
