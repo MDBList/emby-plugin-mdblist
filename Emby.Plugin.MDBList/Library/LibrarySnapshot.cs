@@ -24,6 +24,15 @@ public class LibrarySnapshot
     private readonly Dictionary<string, SnapshotItem> _episodeIndex = new(StringComparer.Ordinal);
     private readonly List<SnapshotItem> _movies = [];
     private readonly List<SnapshotItem> _episodes = [];
+    private readonly List<string> _suspectEpisodeRanges = [];
+
+    /// <summary>
+    /// The widest multi-episode range a single file may cover. Real
+    /// multi-episode files span a handful of numbers; anything wider is a
+    /// misparsed file name (e.g. "S01E06-E4079526") and would otherwise
+    /// expand into millions of phantom episodes on every sync.
+    /// </summary>
+    internal const int MaxEpisodeRangeSpan = 10;
 
     /// <summary>
     /// Gets every movie in the snapshot, whether or not it mapped to any
@@ -48,6 +57,36 @@ public class LibrarySnapshot
     /// usable provider id, or a season/episode number.
     /// </summary>
     public int UnmappableEpisodeCount { get; private set; }
+
+    /// <summary>
+    /// Gets a description of each episode file whose IndexNumberEnd was
+    /// implausible (before IndexNumber, or more than
+    /// <see cref="MaxEpisodeRangeSpan"/> past it) and was treated as a single
+    /// episode instead.
+    /// </summary>
+    public IReadOnlyList<string> SuspectEpisodeRanges => _suspectEpisodeRanges;
+
+    /// <summary>
+    /// Resolves the last episode number a file covers. A missing, backwards
+    /// or implausibly wide IndexNumberEnd collapses to the start number.
+    /// </summary>
+    /// <param name="startNumber">The file's IndexNumber.</param>
+    /// <param name="indexNumberEnd">The file's IndexNumberEnd, if any.</param>
+    /// <returns>The last episode number to register, and whether the given end was rejected.</returns>
+    internal static (int EndNumber, bool Rejected) ResolveEpisodeRangeEnd(int startNumber, int? indexNumberEnd)
+    {
+        if (indexNumberEnd is not { } end || end == startNumber)
+        {
+            return (startNumber, false);
+        }
+
+        if (end < startNumber || (long)end - startNumber > MaxEpisodeRangeSpan)
+        {
+            return (startNumber, true);
+        }
+
+        return (end, false);
+    }
 
     /// <summary>
     /// Builds a snapshot of one Emby user's movie and episode library.
@@ -171,7 +210,14 @@ public class LibrarySnapshot
             // range -- register one record per number so each syncs
             // independently, matching how MDBList tracks watched/rated
             // state per episode number, not per file.
-            var endNumber = episode.IndexNumberEnd ?? startNumber;
+            // A misparsed name can set an absurd end (seen: 6-4,079,526), so
+            // an implausible range falls back to a single episode.
+            var (endNumber, rangeRejected) = ResolveEpisodeRangeEnd(startNumber, episode.IndexNumberEnd);
+            if (rangeRejected)
+            {
+                _suspectEpisodeRanges.Add(
+                    $"'{episode.Series.Name}' S{season}E{startNumber}-E{episode.IndexNumberEnd} ('{episode.Name}', {episode.Path})");
+            }
 
             for (var number = startNumber; number <= endNumber; number++)
             {

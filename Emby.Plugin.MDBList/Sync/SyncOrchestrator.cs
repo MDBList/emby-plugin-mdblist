@@ -227,6 +227,10 @@ public sealed class SyncOrchestrator : IDisposable
             // diff-based reconciliation treat an incomplete snapshot as "the
             // library is empty" and push bulk removals.
             var snapshot = LibrarySnapshot.Build(_libraryManager, _userDataManager, user);
+            foreach (var range in snapshot.SuspectEpisodeRanges)
+            {
+                _logger.Warn("MDBList Sync: implausible multi-episode range on {0}, syncing it as a single episode -- check the file name", range);
+            }
 
             // Companion guard to the removal circuit-breaker in
             // SyncPayloadBuilder: a successful-but-empty library query isn't
