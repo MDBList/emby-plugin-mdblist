@@ -26,6 +26,10 @@ public class LibrarySnapshot
     private readonly List<SnapshotItem> _episodes = [];
     private readonly List<string> _suspectEpisodeRanges = [];
 
+    // Highest local episode number per show-id + season, under every
+    // provider id the show carries -- see IsImplausibleEpisode.
+    private readonly Dictionary<string, int> _seasonMaxEpisode = new(StringComparer.Ordinal);
+
     /// <summary>
     /// The widest multi-episode range a single file may cover. Real
     /// multi-episode files span a handful of numbers; anything wider is a
@@ -65,6 +69,64 @@ public class LibrarySnapshot
     /// episode instead.
     /// </summary>
     public IReadOnlyList<string> SuspectEpisodeRanges => _suspectEpisodeRanges;
+
+    /// <summary>
+    /// Whether a remembered episode could not have come from any real file in
+    /// this library: its show and season are here, but its number lies more
+    /// than <see cref="MaxEpisodeRangeSpan"/> past the season's highest local
+    /// episode. Such entries were left in sync state by older versions that
+    /// expanded misparsed multi-episode ranges (e.g. "S01E06-E4079526") into
+    /// millions of phantom episodes. A show or season not in the library at
+    /// all is never judged implausible -- there is nothing to compare against.
+    /// </summary>
+    /// <param name="showIds">The parent show's ids.</param>
+    /// <param name="season">The season number.</param>
+    /// <param name="episode">The episode number.</param>
+    /// <returns>True when the episode can only be a leftover phantom.</returns>
+    internal bool IsImplausibleEpisode(MediaIds showIds, int? season, int? episode)
+    {
+        if (season is null || episode is null)
+        {
+            return false;
+        }
+
+        int? max = null;
+        foreach (var key in ItemKeys.AllEpisodeIndexKeys(showIds, season, 0))
+        {
+            if (_seasonMaxEpisode.TryGetValue(SeasonKey(key), out var value) && (max is null || value > max))
+            {
+                max = value;
+            }
+        }
+
+        return max is not null && (long)episode.Value - max.Value > MaxEpisodeRangeSpan;
+    }
+
+    /// <summary>
+    /// Records that the library holds episode <paramref name="number"/> of a
+    /// show's season, for <see cref="IsImplausibleEpisode"/>.
+    /// </summary>
+    /// <param name="showIds">The parent show's ids.</param>
+    /// <param name="season">The season number.</param>
+    /// <param name="number">The episode number.</param>
+    internal void RegisterSeasonEpisode(MediaIds showIds, int? season, int number)
+    {
+        foreach (var key in ItemKeys.AllEpisodeIndexKeys(showIds, season, 0))
+        {
+            var seasonKey = SeasonKey(key);
+            if (!_seasonMaxEpisode.TryGetValue(seasonKey, out var current) || number > current)
+            {
+                _seasonMaxEpisode[seasonKey] = number;
+            }
+        }
+    }
+
+    // AllEpisodeIndexKeys yields "{provider}:{id}:{season}:{episode}"; drop
+    // the trailing episode part to get a per-season key.
+    private static string SeasonKey(string episodeIndexKey)
+    {
+        return episodeIndexKey.Substring(0, episodeIndexKey.LastIndexOf(':'));
+    }
 
     /// <summary>
     /// Resolves the last episode number a file covers. A missing, backwards
@@ -218,6 +280,8 @@ public class LibrarySnapshot
                 _suspectEpisodeRanges.Add(
                     $"'{episode.Series.Name}' S{season}E{startNumber}-E{episode.IndexNumberEnd} ('{episode.Name}', {episode.Path})");
             }
+
+            RegisterSeasonEpisode(showIds, season, endNumber);
 
             for (var number = startNumber; number <= endNumber; number++)
             {

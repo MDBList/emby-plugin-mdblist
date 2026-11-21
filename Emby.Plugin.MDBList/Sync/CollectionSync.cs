@@ -91,7 +91,8 @@ public class CollectionSync
             items => _payloadBuilder.PushItemsRemoveAsync(userId, Category, accessToken, RemoveEndpoint, items, cancellationToken),
             Changed,
             cancellationToken,
-            allowRemovals).ConfigureAwait(false);
+            allowRemovals,
+            isPhantom: item => item.Type == "episode" && snapshot.IsImplausibleEpisode(item.Ids, item.Season, item.Episode)).ConfigureAwait(false);
     }
 
     /// <summary>

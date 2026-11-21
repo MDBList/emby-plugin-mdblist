@@ -92,7 +92,8 @@ public class WatchedSync
             items => _payloadBuilder.PushItemsRemoveAsync(userId, Category, accessToken, RemoveEndpoint, items, cancellationToken),
             valueChanged: (known, item) => known.WatchedAt != item.WatchedAt,
             cancellationToken,
-            allowRemovals).ConfigureAwait(false);
+            allowRemovals,
+            isPhantom: item => item.Type == "episode" && snapshot.IsImplausibleEpisode(item.Ids, item.Season, item.Episode)).ConfigureAwait(false);
     }
 
     /// <summary>
